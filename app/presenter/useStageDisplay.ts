@@ -33,6 +33,7 @@ function readLastConfirmation() {
 
 interface StageReport {
   type: "report";
+  stageId: string;
   revision: number;
   fullscreen: boolean;
   screen?: string;
@@ -40,6 +41,10 @@ interface StageReport {
   width: number;
   height: number;
 }
+
+type StageMessage =
+  | StageReport
+  | { type: "disconnect" | "disconnected" | "close-blocked"; stageId: string };
 
 export function useDisplayDetails(enabled: boolean) {
   const [details, setDetails] = useState<{
@@ -114,22 +119,53 @@ export function useStageConnection(
   now: number,
 ) {
   const [report, setReport] = useState<StageReport>();
-  const [previousConfirmation] = useState(readLastConfirmation);
+  const [lastConfirmedAt, setLastConfirmedAt] = useState(readLastConfirmation);
+  const [disconnecting, setDisconnecting] = useState(false);
   const [hint, setHint] = useState("");
   const popup = useRef<Window | null>(null);
+  const channelRef = useRef<BroadcastChannel | null>(null);
+  const disconnectRequest = useRef<{ stageId: string; timeout: number } | null>(
+    null,
+  );
 
   useEffect(() => {
     const channel = new BroadcastChannel(STAGE_CHANNEL);
-    channel.onmessage = ({ data }: MessageEvent<StageReport>) => {
+    channelRef.current = channel;
+    channel.onmessage = ({ data }: MessageEvent<StageMessage>) => {
+      if (
+        (data?.type === "disconnected" || data?.type === "close-blocked") &&
+        disconnectRequest.current?.stageId === data.stageId
+      ) {
+        clearTimeout(disconnectRequest.current.timeout);
+        disconnectRequest.current = null;
+        setDisconnecting(false);
+        if (data.type === "disconnected") {
+          setReport((current) =>
+            current?.stageId === data.stageId ? undefined : current,
+          );
+          setHint("");
+        } else {
+          setHint(
+            "Chrome couldn’t close the stage window. Close it manually to return to the desktop.",
+          );
+        }
+        return;
+      }
       if (data?.type !== "report") return;
       setReport(data);
+      setLastConfirmedAt(data.at);
       try {
         sessionStorage.setItem(LAST_REPORT_KEY, String(data.at));
       } catch {
         // The current confirmation is still available in memory.
       }
     };
-    return () => channel.close();
+    return () => {
+      if (disconnectRequest.current)
+        clearTimeout(disconnectRequest.current.timeout);
+      channelRef.current = null;
+      channel.close();
+    };
   }, []);
 
   const connected = Boolean(report && now && now - report.at < 4_000);
@@ -164,24 +200,75 @@ export function useStageConnection(
     );
   }
 
+  function disconnect() {
+    if (!report || !channelRef.current || disconnectRequest.current) return;
+    const { stageId } = report;
+    setHint("");
+    setDisconnecting(true);
+    disconnectRequest.current = {
+      stageId,
+      timeout: window.setTimeout(() => {
+        disconnectRequest.current = null;
+        setDisconnecting(false);
+        setHint(
+          "The stage didn’t confirm it closed. If it’s still open, close the stage window manually.",
+        );
+      }, 4_000),
+    };
+    channelRef.current.postMessage({
+      type: "disconnect",
+      stageId,
+    } satisfies StageMessage);
+  }
+
   return {
     report,
-    lastConfirmedAt: report?.at ?? previousConfirmation,
+    lastConfirmedAt,
     connected,
     onExtendedDisplay,
     open,
+    disconnect,
+    disconnecting,
     hint,
     setHint,
   };
 }
 
 export function useStageReports(revision: number | undefined, screen?: string) {
+  const [stageId] = useState(() => crypto.randomUUID());
   useEffect(() => {
     if (revision === undefined) return;
     const channel = new BroadcastChannel(STAGE_CHANNEL);
+    let closing = false;
+    let closeTimeout: number | undefined;
+    function onPageHide() {
+      if (closing)
+        channel.postMessage({
+          type: "disconnected",
+          stageId,
+        } satisfies StageMessage);
+    }
+    channel.onmessage = ({ data }: MessageEvent<StageMessage>) => {
+      if (data?.type !== "disconnect" || data.stageId !== stageId || closing)
+        return;
+      closing = true;
+      window.close();
+      closeTimeout = window.setTimeout(() => {
+        if (window.closed) return;
+        closing = false;
+        if (document.fullscreenElement)
+          void document.exitFullscreen().catch(() => {});
+        channel.postMessage({
+          type: "close-blocked",
+          stageId,
+        } satisfies StageMessage);
+      }, 250);
+    };
     const send = () => {
+      if (closing) return;
       const report: StageReport = {
         type: "report",
+        stageId,
         revision,
         fullscreen: Boolean(document.fullscreenElement),
         screen,
@@ -195,12 +282,15 @@ export function useStageReports(revision: number | undefined, screen?: string) {
     const interval = window.setInterval(send, 1_000);
     document.addEventListener("fullscreenchange", send);
     window.addEventListener("resize", send);
+    window.addEventListener("pagehide", onPageHide);
     return () => {
       cancelAnimationFrame(frame);
       clearInterval(interval);
+      clearTimeout(closeTimeout);
       document.removeEventListener("fullscreenchange", send);
       window.removeEventListener("resize", send);
+      window.removeEventListener("pagehide", onPageHide);
       channel.close();
     };
-  }, [revision, screen]);
+  }, [revision, screen, stageId]);
 }

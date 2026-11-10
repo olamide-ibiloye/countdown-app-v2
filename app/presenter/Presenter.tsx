@@ -17,6 +17,7 @@ import {
     Clock3,
     Maximize,
     Monitor,
+    MonitorOff,
     MonitorUp,
     Moon,
     Plus,
@@ -130,18 +131,24 @@ function Console({
   );
   const nextIndex = queue.findIndex((session) => session.id === timer?.id) + 1;
   const applied = stage.connected && stage.report?.revision === event.revision;
-  const live = applied && stage.report?.fullscreen && stage.onExtendedDisplay;
-  const status = live
-    ? "Stage live"
-    : applied
-      ? stage.report?.fullscreen
-        ? "Fullscreen · placement unverified"
-        : "Connected · windowed"
-      : stage.connected
-        ? "Waiting for stage update"
-        : stage.lastConfirmedAt
-          ? "Stage disconnected"
-          : "Stage not open";
+  const live =
+    !stage.disconnecting &&
+    applied &&
+    stage.report?.fullscreen &&
+    stage.onExtendedDisplay;
+  const status = stage.disconnecting
+    ? "Disconnecting stage"
+    : live
+      ? "Stage live"
+      : applied
+        ? stage.report?.fullscreen
+          ? "Fullscreen · placement unverified"
+          : "Connected · windowed"
+        : stage.connected
+          ? "Waiting for stage update"
+          : stage.lastConfirmedAt
+            ? "Stage disconnected"
+            : "Stage not open";
 
   useEffect(() => {
     if (!singleScreen || !timer || finished) return;
@@ -347,10 +354,21 @@ function Console({
               <button
                 type="button"
                 className="aeon-button aeon-primary"
+                disabled={stage.disconnecting}
                 onClick={stage.open}
               >
-                <MonitorUp size={16} /> Open Stage Display
+                <MonitorUp size={16} /> Open Stage
               </button>
+              {(stage.connected || stage.disconnecting) && (
+                <button
+                  type="button"
+                  className="aeon-button"
+                  disabled={stage.disconnecting}
+                  onClick={stage.disconnect}
+                >
+                  <MonitorOff size={15} /> Disconnect Stage
+                </button>
+              )}
               <button
                 type="button"
                 className="aeon-button"
