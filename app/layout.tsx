@@ -3,9 +3,6 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { ReactNode } from "react";
 import { Metadata } from "next";
-import DataProvider from "@/providers/DataProvider";
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -30,10 +27,7 @@ const RootLayout = ({ children }: { children: ReactNode }) => {
             enableSystem
             disableTransitionOnChange
           >
-            <DataProvider>
-              <TooltipProvider>{children}</TooltipProvider>
-              <Toaster />
-            </DataProvider>
+            {children}
           </ThemeProvider>
         </body>
       </html>

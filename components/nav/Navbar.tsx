@@ -12,6 +12,12 @@ const Navbar = () => {
         <BrandIcon />
       </div>
 
+      <a
+        href="/presenter"
+        className="mr-3 rounded-md border px-3 py-2 text-sm font-semibold"
+      >
+        Try Presenter v3
+      </a>
       <ModeToggle />
       <MobileNav />
     </nav>

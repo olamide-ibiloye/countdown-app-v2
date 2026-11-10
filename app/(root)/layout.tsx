@@ -1,13 +1,15 @@
 "use client";
 
-import "@/app/globals.css";
+import "./classic-fonts.css";
 import { ReactNode, useContext } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import Navbar from "@/components/nav/Navbar";
 import Sidebar from "@/components/nav/Sidebar";
-import { DataContext } from "@/providers/DataProvider";
+import DataProvider, { DataContext } from "@/providers/DataProvider";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/components/ui/toaster";
 
-const RootLayout = ({ children }: { children: ReactNode }) => {
+const ClassicLayout = ({ children }: { children: ReactNode }) => {
   const { isFullscreen, setFeature, setIsFullscreen, timer, feature } =
     useContext(DataContext);
 
@@ -62,4 +64,13 @@ const RootLayout = ({ children }: { children: ReactNode }) => {
   );
 };
 
-export default RootLayout;
+export default function RootLayout({ children }: { children: ReactNode }) {
+  return (
+    <DataProvider>
+      <TooltipProvider>
+        <ClassicLayout>{children}</ClassicLayout>
+      </TooltipProvider>
+      <Toaster />
+    </DataProvider>
+  );
+}

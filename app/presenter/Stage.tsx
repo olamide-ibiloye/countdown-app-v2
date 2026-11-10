@@ -1,0 +1,177 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
+import parse, { domToReact, Element, type DOMNode } from "html-react-parser";
+import {
+  clockFormat,
+  remainingTime,
+  warningMinutes,
+  type PresenterEvent,
+} from "@/lib/presenter";
+import { useStageClock } from "./usePresenter";
+import { useDisplayDetails, useStageReports } from "./useStageDisplay";
+
+const messageTags = new Set([
+  "p",
+  "br",
+  "h1",
+  "h2",
+  "h3",
+  "strong",
+  "b",
+  "em",
+  "i",
+  "u",
+  "s",
+  "ul",
+  "ol",
+  "li",
+  "blockquote",
+  "pre",
+  "code",
+  "hr",
+]);
+
+const messageOptions = {
+  replace(node: DOMNode) {
+    if (!(node instanceof Element)) return;
+    if (!messageTags.has(node.name)) return <></>;
+    const Tag = node.name as "p";
+    if (node.name === "br" || node.name === "hr") return <Tag />;
+    return <Tag>{domToReact(node.children as DOMNode[], messageOptions)}</Tag>;
+  },
+};
+
+export function StageContent({
+  event,
+  now,
+  preview = false,
+}: {
+  event: PresenterEvent;
+  now: number;
+  preview?: boolean;
+}) {
+  const { output, timer } = event;
+  const remaining = timer && now ? remainingTime(timer, now) : 0;
+  const countdown = output.kind === "countdown" && timer && now;
+  const expired = countdown && remaining === 0;
+  const warning = countdown && warningMinutes(timer, remaining);
+  const alert = expired || Boolean(warning);
+  let content;
+
+  if (countdown) {
+    content = expired
+      ? "TIME’S UP"
+      : warning
+        ? `${warning} MINUTE${warning === 1 ? "" : "S"} LEFT`
+        : clockFormat(remaining);
+  } else if (output.kind === "clock" && now) {
+    content = new Date(now).toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: !output.twentyFourHours,
+    });
+  }
+  const Heading = preview ? "div" : "h1";
+
+  return (
+    <div
+      className={cn(
+        "aeon-output",
+        output.kind === "standby" && "aeon-standby",
+        alert && "aeon-alert motion-safe:animate-flash",
+      )}
+    >
+      {content && (
+        <Heading
+          className={cn(
+            alert ? "aeon-signal" : "aeon-digits",
+            output.kind === "clock" && "aeon-digits-clock",
+            !alert &&
+              content.length > 5 &&
+              output.kind === "countdown" &&
+              "aeon-digits-hours",
+          )}
+        >
+          {content}
+        </Heading>
+      )}
+      {output.kind === "message" && (
+        <div className="aeon-stage-message">
+          {parse(output.html, messageOptions)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function StageWindow({
+  event,
+  storageError,
+}: {
+  event: PresenterEvent;
+  storageError: boolean;
+}) {
+  const now = useStageClock(
+    event.timer?.phase === "running" ? event.timer.deadline : undefined,
+  );
+  const { details } = useDisplayDetails(true);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [message, setMessage] = useState("");
+  useStageReports(now ? event.revision : undefined, details?.current);
+
+  const enterFullscreen = useCallback(async () => {
+    try {
+      await document.documentElement.requestFullscreen({
+        navigationUI: "hide",
+      });
+      setMessage("");
+    } catch {
+      setMessage("Use Chrome’s fullscreen command or try the button again.");
+    }
+  }, []);
+
+  useEffect(() => {
+    const onChange = () => setFullscreen(Boolean(document.fullscreenElement));
+    function onKey(e: KeyboardEvent) {
+      if (e.key.toLowerCase() !== "f" || e.repeat || document.fullscreenElement)
+        return;
+      e.preventDefault();
+      void enterFullscreen();
+    }
+    document.addEventListener("fullscreenchange", onChange);
+    window.addEventListener("keydown", onKey);
+    onChange();
+    // Chrome may allow automatic fullscreen for this site. Otherwise keep the stage button available.
+    if (!document.fullscreenElement) {
+      void document.documentElement
+        .requestFullscreen({ navigationUI: "hide" })
+        .catch(() => {});
+    }
+    return () => {
+      document.removeEventListener("fullscreenchange", onChange);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [enterFullscreen]);
+
+  return (
+    <main className="aeon-stage-window">
+      <StageContent event={event} now={now} />
+      {!fullscreen && (
+        <div className="aeon-stage-setup">
+          <button type="button" onClick={enterFullscreen}>
+            Fullscreen
+          </button>
+          {message && <p role="status">{message}</p>}
+        </div>
+      )}
+      {storageError && (
+        <p className="aeon-stage-setup" role="alert">
+          Stage state is unavailable.
+        </p>
+      )}
+    </main>
+  );
+}
