@@ -36,3 +36,8 @@ export const getMilliseconds = ({
   seconds,
 }: GetMilliseconds): number =>
   hours * 60 * 60 * 1000 + minutes * 60 * 1000 + seconds * 1000;
+
+export function getTimeInputMilliseconds(value: string): number {
+  const [hours, minutes, seconds = 0] = value.split(":").map(Number);
+  return getMilliseconds({ hours, minutes, seconds });
+}

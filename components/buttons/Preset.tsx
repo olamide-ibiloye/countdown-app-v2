@@ -4,12 +4,11 @@ import { useContext } from "react";
 import { cn } from "@/lib/utils";
 import { DataContext } from "@/providers/DataProvider";
 import { isDuration } from "@/lib/countdown";
-import { getMilliseconds } from "@/utils/functions";
+import { getTimeInputMilliseconds } from "@/utils/functions";
 
 export default function Preset({ presetTime }: { presetTime: string }) {
   const { timer } = useContext(DataContext);
-  const [hours, minutes, seconds = 0] = presetTime.split(":").map(Number);
-  const durationMs = getMilliseconds({ hours, minutes, seconds });
+  const durationMs = getTimeInputMilliseconds(presetTime);
   const selected = !timer.sessions.length && timer.countdownMs === durationMs;
 
   return (

@@ -9,8 +9,20 @@ import { Dialog, DialogContent } from "../ui/dialog";
 import { Input } from "../ui/input";
 import { Separator } from "../ui/separator";
 import SaveIcon from "@mui/icons-material/Save";
+import { getTimeInputMilliseconds } from "@/utils/functions";
 
 const DEFAULT_PRESETS = ["00:03:00", "00:05:00", "00:07:00"];
+
+function sortPresets(presets: string[]): string[] {
+  return presets
+    .map((preset) => ({ preset, duration: getTimeInputMilliseconds(preset) }))
+    .sort(
+      (a, b) =>
+        (Number.isNaN(a.duration) ? Infinity : a.duration) -
+        (Number.isNaN(b.duration) ? Infinity : b.duration),
+    )
+    .map(({ preset }) => preset);
+}
 
 const PresetBlock = () => {
   const [presets, setPresets] = useLocalStorage({
@@ -19,8 +31,9 @@ const PresetBlock = () => {
   });
 
   // Parse presets if it's a string (from JSON)
-  const parsedPresets: string[] =
-    typeof presets === "string" ? JSON.parse(presets) : presets;
+  const parsedPresets = sortPresets(
+    typeof presets === "string" ? JSON.parse(presets) : presets,
+  );
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newPreset, setNewPreset] = useState("");
@@ -50,7 +63,7 @@ const PresetBlock = () => {
   };
 
   const saveChanges = () => {
-    setPresets(editablePresets);
+    setPresets(sortPresets(editablePresets));
     closeDialog();
   };
 
