@@ -34,10 +34,14 @@ Aeon Timer is a countdown Next.js application hosted at [Aeon Timer](https://aeo
 
 ## Technologies Used
 
-- **Next.js 14**: A React framework for building server-side rendered applications.
+- **Next.js 16**: A React framework for building server-side rendered applications.
 - **Tailwind CSS**: A utility-first CSS framework for quickly styling web applications.
 - **Netlify**: Hosting platform used to deploy the Aeon Timer application.
 - **TypeScript**: A typed superset of JavaScript that compiles to plain JavaScript.
+
+## Local Development
+
+Use Node.js 22 or later. Run `npm ci` to install the locked dependencies, then `npm run dev` to start the app.
 
 ## Contributing
 

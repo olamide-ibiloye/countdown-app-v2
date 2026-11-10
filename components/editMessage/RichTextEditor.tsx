@@ -2,7 +2,6 @@
 
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import Underline from "@tiptap/extension-underline";
 import Toolbar from "./Toolbar";
 
 const RichTextEditor = ({
@@ -13,8 +12,12 @@ const RichTextEditor = ({
   onChange: (richText: string) => void;
 }) => {
   const editor = useEditor({
+    immediatelyRender: false,
+    shouldRerenderOnTransaction: true,
     extensions: [
       StarterKit.configure({
+        link: false,
+        trailingNode: false,
         heading: {
           levels: [1, 2, 3],
         },
@@ -24,7 +27,6 @@ const RichTextEditor = ({
           },
         },
       }),
-      Underline,
     ],
     content: message,
     editorProps: {
