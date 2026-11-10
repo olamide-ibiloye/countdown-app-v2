@@ -4,7 +4,7 @@ Aeon Timer is a countdown Next.js application hosted at [Aeon Timer](https://aeo
 
 ## Presenter v3
 
-Choose **Try Presenter v3** from Classic to open the presenter console. The **Classic v2** link returns to the original timer and Auto Pilot.
+The app opens in **Presenter v3**. Choose **Switch to Classic Timer (v2)** to use the original timer and Auto Pilot. Choose **Presenter v3** in Classic to return to the presenter console.
 
 Use **Open Stage** for an extended display or **Single Screen** for fullscreen on the operator’s screen. In Chrome or Edge, allow automatic display placement and use **Fullscreen Stage** from the dashboard. On Windows, choose **Extend** with **Windows + P** before opening the stage.
 

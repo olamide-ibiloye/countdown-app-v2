@@ -6,7 +6,7 @@ const config = [
   {
     // Keep existing hydration effects visible during the lint migration.
     files: [
-      "app/(root)/pages/*.tsx",
+      "app/classic/pages/*.tsx",
       "components/modeToggle/ModeToggle.tsx",
       "components/schedule/ScheduleModal.tsx",
     ],
