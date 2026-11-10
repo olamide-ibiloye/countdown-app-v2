@@ -2,21 +2,10 @@
 
 import React, { createContext, useState, ReactNode, useEffect } from "react";
 import { useLocalStorage } from "@/customHooks/useLocalStorage";
-import { getMilliseconds } from "@/utils/functions";
+import { useCountdown } from "@/customHooks/useCountdown";
+import { initialTimer } from "@/lib/countdown";
 
-const TIME_OUT = 10_000;
-const ONE_SECOND = 1_000;
-const WAIT_TIME = 10_000;
-
-export interface TimeItems {
-  hours: number;
-  minutes: number;
-  seconds: number;
-  totalMilliseconds: number;
-  autoMode?: boolean;
-  workQueue?: number[];
-  stepperQueue?: number[];
-}
+const CONTROLS_TIMEOUT_MS = 10_000;
 
 interface MessageItems {
   message: string;
@@ -25,80 +14,57 @@ interface MessageItems {
 
 interface DataContextType {
   feature: string;
-  setFeature: React.Dispatch<React.SetStateAction<string>>;
-  showAlert: boolean;
-  setShowAlert: React.Dispatch<React.SetStateAction<boolean>>;
-  showTimeUp: boolean;
-  setShowTimeUp: React.Dispatch<React.SetStateAction<boolean>>;
-  editMode: boolean;
-  setEditMode: React.Dispatch<React.SetStateAction<boolean>>;
-  isPlaying: boolean;
-  setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>;
-  isBreakTime: boolean;
-  setIsBreakTime: React.Dispatch<React.SetStateAction<boolean>>;
+  setFeature: (feature: string) => void;
+  timer: ReturnType<typeof useCountdown>;
+  messageEditMode: boolean;
+  setMessageEditMode: React.Dispatch<React.SetStateAction<boolean>>;
   twentyFourHoursFormat: boolean;
   setTwentyFourHoursFormat: React.Dispatch<React.SetStateAction<boolean>>;
   message: MessageItems;
   setMessage: React.Dispatch<React.SetStateAction<MessageItems>>;
   isVisible: boolean;
-  setIsVisible: React.Dispatch<React.SetStateAction<boolean>>;
   isFullscreen: boolean;
   setIsFullscreen: React.Dispatch<React.SetStateAction<boolean>>;
-  timeItems: TimeItems;
-  setTimeItems: React.Dispatch<React.SetStateAction<TimeItems>>;
-  activeStep: number;
-  setActiveStep: React.Dispatch<React.SetStateAction<number>>;
-  WAIT_TIME: number;
 }
 
 const initialContext: DataContextType = {
   feature: "home",
   setFeature: () => {},
-  showAlert: false,
-  setShowAlert: () => {},
-  showTimeUp: false,
-  setShowTimeUp: () => {},
-  editMode: false,
-  setEditMode: () => {},
-  isPlaying: false,
-  setIsPlaying: () => {},
-  isBreakTime: false,
-  setIsBreakTime: () => {},
+  timer: {
+    ...initialTimer,
+    remainingMs: initialTimer.countdownMs,
+    warningMinutes: undefined,
+    draftMs: null,
+    restoredView: undefined,
+    command: () => {},
+  },
+  messageEditMode: false,
+  setMessageEditMode: () => {},
   isVisible: false,
-  setIsVisible: () => {},
   isFullscreen: false,
   setIsFullscreen: () => {},
-  activeStep: 0,
-  setActiveStep: () => {},
-  timeItems: {
-    hours: 0,
-    minutes: 0,
-    seconds: 0,
-    totalMilliseconds: 0,
-    autoMode: false,
-    workQueue: [],
-    stepperQueue: [],
-  },
-  setTimeItems: () => {},
   message: { message: "", tempMessage: "" },
   setMessage: () => {},
   twentyFourHoursFormat: true,
   setTwentyFourHoursFormat: () => {},
-  WAIT_TIME
 };
 
 export const DataContext = createContext(initialContext);
 
 const DataProvider = ({ children }: { children: ReactNode }) => {
-  const [feature, setFeature] = useState("home");
-  const [showAlert, setShowAlert] = useState(false);
-  const [showTimeUp, setShowTimeUp] = useState(false);
-  const [editMode, setEditMode] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isBreakTime, setIsBreakTime] = useState(false);
+  const timer = useCountdown();
+  const [selectedFeature, selectFeature] = useState<string>();
+  const feature = selectedFeature ?? timer.restoredView ?? "home";
+  const [messageEditMode, setMessageEditMode] = useState(false);
+  const isPlaying = timer.run.phase === "running";
+  const setFeature = (nextFeature: string) => {
+    selectFeature(nextFeature);
+    if (nextFeature !== "countdown" && timer.draftMs !== null) {
+      timer.command({ type: "cancel-edit" });
+    }
+  };
   const [isVisible, setIsVisible] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [activeStep, setActiveStep] = React.useState(0);
   const [twentyFourHoursFormat, setTwentyFourHoursFormat] = useLocalStorage({
     key: "twentyFourHoursFormat",
     defaultValue: JSON.stringify(true),
@@ -110,19 +76,6 @@ const DataProvider = ({ children }: { children: ReactNode }) => {
       tempMessage: "",
     }),
   });
-  const [timeItems, setTimeItems] = useLocalStorage({
-    key: "timeItems",
-    defaultValue: JSON.stringify({
-      hours: 0,
-      minutes: 10,
-      seconds: 0,
-      totalMilliseconds: 600000,
-      autoMode: false,
-      workQueue: [],
-      stepperQueue: [],
-    }),
-  });
-
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
 
@@ -135,7 +88,7 @@ const DataProvider = ({ children }: { children: ReactNode }) => {
         if (isPlaying) {
           setIsVisible(false);
         }
-      }, TIME_OUT);
+      }, CONTROLS_TIMEOUT_MS);
     };
 
     document.addEventListener("mousemove", handleMouseMove);
@@ -146,109 +99,21 @@ const DataProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [isPlaying]);
 
-  useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-
-    const processWorkQueue = (queue: number[]) => {
-      if (queue.length > 0) {
-        setShowAlert(false);
-
-        setIsPlaying(true);
-
-        if (queue.length !== timeItems.stepperQueue.length) {
-          setActiveStep((prevActiveStep) => prevActiveStep + 1);
-        }
-
-        setTimeItems((prevTimeItems: any) => ({
-          ...prevTimeItems,
-          totalMilliseconds: queue[0],
-          workQueue: queue.slice(1),
-          autoMode: queue.length > 1,
-        }));
-      } else {
-        setIsPlaying(false);
-      }
-    };
-
-    if (isPlaying && timeItems.totalMilliseconds > 0) {
-      timeoutId = setTimeout(() => {
-        setTimeItems((prevTimeItems: { totalMilliseconds: number }) => ({
-          ...prevTimeItems,
-          totalMilliseconds: prevTimeItems.totalMilliseconds - ONE_SECOND,
-        }));
-      }, 975);
-    }
-
-    if (
-      timeItems.totalMilliseconds <= 1000 &&
-      timeItems.workQueue?.length > 0
-    ) {
-      setIsBreakTime(true);
-      setIsPlaying(false);
-    }
-
-    if (timeItems.workQueue?.length === timeItems.stepperQueue?.length) {
-      if (isPlaying && timeItems.autoMode && timeItems.workQueue.length > 0) {
-        processWorkQueue(timeItems.workQueue);
-      }
-    } else {
-      timeoutId = setTimeout(() => {
-        setIsBreakTime(false);
-
-        if (
-          !isPlaying &&
-          timeItems.autoMode &&
-          timeItems.workQueue.length > 0
-        ) {
-          processWorkQueue(timeItems.workQueue);
-        }
-      }, WAIT_TIME);
-    }
-
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [isPlaying, timeItems, setTimeItems, isBreakTime]);
-
-  if (timeItems.totalMilliseconds < 1000) {
-    setShowAlert(true);
-
-    setIsPlaying(false);
-
-    setTimeItems((prevTimeItems: any) => ({
-      ...prevTimeItems,
-      totalMilliseconds: getMilliseconds(prevTimeItems),
-    }));
-  }
-
   return (
     <DataContext.Provider
       value={{
         feature,
         setFeature,
-        showAlert,
-        setShowAlert,
-        showTimeUp,
-        setShowTimeUp,
-        editMode,
-        setEditMode,
-        isPlaying,
-        setIsPlaying,
-        isBreakTime,
-        setIsBreakTime,
-        timeItems,
-        setTimeItems,
+        timer,
+        messageEditMode,
+        setMessageEditMode,
         message,
         setMessage,
-        isVisible,
-        setIsVisible,
-        activeStep,
-        setActiveStep,
+        isVisible: !isPlaying || isVisible,
         isFullscreen,
         setIsFullscreen,
         twentyFourHoursFormat,
         setTwentyFourHoursFormat,
-        WAIT_TIME
       }}
     >
       {children}

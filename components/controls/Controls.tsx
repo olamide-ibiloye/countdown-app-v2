@@ -9,7 +9,7 @@ import { DataContext } from "@/providers/DataProvider";
 import SetSchedule from "../buttons/SetSchedule";
 
 interface SetScheduleProps {
-  setSchedule: any;
+  setSchedule?: () => void;
 }
 
 const Controls = ({ setSchedule }: SetScheduleProps) => {
@@ -20,7 +20,7 @@ const Controls = ({ setSchedule }: SetScheduleProps) => {
       <div className="flex h-[100px] w-full max-w-[1440px] items-center justify-center gap-4">
         <div className="flex-1">
           {feature === "countdown" && <SetCountdown />}
-          {feature === "auto-pilot" && (
+          {feature === "auto-pilot" && setSchedule && (
             <SetSchedule handleClick={setSchedule} />
           )}
           {feature === "message" && <SetMessage />}

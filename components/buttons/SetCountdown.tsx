@@ -1,65 +1,35 @@
 "use client";
 
+import { useContext } from "react";
 import { DataContext } from "@/providers/DataProvider";
-import { getMilliseconds } from "@/utils/functions";
-import React, { useContext } from "react";
 import { Button } from "../ui/button";
 import { IconButton } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 
-const SetTime = () => {
-  const {
-    feature,
-    editMode,
-    setEditMode,
-    setIsPlaying,
-    timeItems,
-    setTimeItems,
-  } = useContext(DataContext);
-
-  const handleConfirm = () => {
-    if (editMode && hasNonZeroDuration()) {
-      const newDuration = getMilliseconds(timeItems);
-
-      setTimeItems((prevState) => ({
-        ...prevState,
-        totalMilliseconds: newDuration,
-      }));
-    }
-
-    setIsPlaying(false);
-    setEditMode(!editMode);
-  };
-
-  const handleClose = () => {
-    setEditMode(!editMode);
-  };
-
-  const hasNonZeroDuration = () => {
-    const { hours, minutes, seconds } = timeItems;
-    return hours !== 0 || minutes !== 0 || seconds !== 0;
-  };
-
-  const buttonName = editMode ? "Confirm" : "Set Countdown";
+export default function SetCountdown() {
+  const { timer } = useContext(DataContext);
+  const editing = timer.draftMs !== null;
 
   return (
     <>
-      {editMode && feature === "countdown" && (
-        <IconButton onClick={handleClose}>
+      {editing && (
+        <IconButton
+          aria-label="Cancel countdown edit"
+          onClick={() => timer.command({ type: "cancel-edit" })}
+        >
           <CloseIcon className="icon" />
         </IconButton>
       )}
 
       <Button
-        type="submit"
-        onClick={handleConfirm}
+        type="button"
+        onClick={() => timer.command({ type: editing ? "confirm" : "edit" })}
+        disabled={timer.draftMs === 0}
         variant="outline"
         className="timer-button"
       >
-        {buttonName.toUpperCase()}
+        {editing ? "CONFIRM" : "SET COUNTDOWN"}
       </Button>
     </>
   );
-};
-
-export default SetTime;
+}

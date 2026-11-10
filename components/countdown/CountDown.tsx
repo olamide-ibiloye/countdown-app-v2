@@ -1,68 +1,43 @@
 "use client";
 
-import React, { useContext } from "react";
+import { useContext } from "react";
 import { DataContext } from "@/providers/DataProvider";
 import { getFormattedTime } from "@/utils/functions";
+import { cn } from "@/lib/utils";
 import PresetBlock from "../editCountdown/PresetBlock";
 import EditCountDown from "../editCountdown/EditCountDown";
-import { cn } from "@/lib/utils";
 import ScheduleStepper from "../stepper/ScheduleStepper";
 import Block from "../block/Block";
 
-const Timer = () => {
-  const { timeItems, isPlaying, isVisible, editMode, feature, showAlert } =
-    useContext(DataContext);
+export default function CountDown() {
+  const { timer, isVisible, feature } = useContext(DataContext);
+  if (timer.draftMs !== null)
+    return <EditCountDown durationMs={timer.draftMs} />;
 
-  const currentTime = getFormattedTime(timeItems.totalMilliseconds);
-  const hourIncluded = currentTime.length > 5;
-
-  return editMode ? (
-    <EditCountDown />
-  ) : (
+  const currentTime = getFormattedTime(timer.remainingMs);
+  return (
     <div className="flex size-full flex-col items-center justify-between">
       <h1
         className={cn(
           "flex w-full flex-1 items-center justify-center text-center font-bold",
-          {
-            "size-hour-included": hourIncluded,
-            "size-hour-excluded": !hourIncluded,
-          },
+          currentTime.length > 5 ? "size-hour-included" : "size-hour-excluded",
         )}
       >
         {currentTime}
       </h1>
 
-      <BottomBlock
-        isPlaying={isPlaying}
-        isVisible={isVisible}
-        feature={feature}
-        showAlert={showAlert}
-        stepperQueue={timeItems.stepperQueue || []}
-      />
+      {timer.sessions.length > 0 && feature === "auto-pilot" ? (
+        <ScheduleStepper
+          sessions={timer.sessions}
+          activeStep={timer.run.step}
+        />
+      ) : isVisible &&
+        timer.run.phase !== "running" &&
+        feature === "countdown" ? (
+        <PresetBlock />
+      ) : (
+        <Block />
+      )}
     </div>
   );
-};
-
-export default Timer;
-
-export const BottomBlock = ({
-  isVisible,
-  isPlaying,
-  feature,
-  showAlert,
-  stepperQueue,
-}: {
-  isVisible: boolean;
-  isPlaying: boolean;
-  feature: string;
-  showAlert: boolean;
-  stepperQueue: number[];
-}) => {
-  if (isVisible && !isPlaying && feature === "countdown") {
-    return <PresetBlock />;
-  } else if (!showAlert && feature === "auto-pilot") {
-    return <ScheduleStepper queue={stepperQueue} />;
-  } else {
-    return <Block />;
-  }
-};
+}

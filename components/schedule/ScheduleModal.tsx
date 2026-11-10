@@ -10,7 +10,7 @@ import { Input } from "../ui/input";
 import { IconButton } from "@mui/material";
 import { Close } from "@mui/icons-material";
 import { cn } from "@/lib/utils";
-import { getMilliseconds } from "@/utils/functions";
+import { isDuration } from "@/lib/countdown";
 import { DataContext } from "@/providers/DataProvider";
 import SaveIcon from "@mui/icons-material/Save";
 import { useLocalStorage } from "@/customHooks/useLocalStorage";
@@ -31,7 +31,7 @@ type FormValues = {
 
 const ScheduleModal = ({ isOpen, onClose }: ModalProps) => {
   const [isClient, setIsClient] = useState(false);
-  const { timeItems, setTimeItems, setActiveStep } = useContext(DataContext);
+  const { timer } = useContext(DataContext);
   const [savedSchedule, setSavedSchedule] = useLocalStorage({
     key: "savedSchedule",
     defaultValue: "{}",
@@ -70,36 +70,10 @@ const ScheduleModal = ({ isOpen, onClose }: ModalProps) => {
   };
 
   const onSubmit = async (values: FormValues) => {
-    const { sessions } = values;
+    const sessions = values.sessions.map(({ duration }) => Number(duration) * 60_000);
+    if (!sessions.length || !sessions.every(isDuration)) return;
 
-    if (!sessions) return;
-
-    const { converted, queue } = sessions.reduce(
-      (acc, { duration }) => {
-        const durationNumber = Number(duration);
-        const milliseconds = getMilliseconds({
-          hours: 0,
-          minutes: durationNumber,
-          seconds: 0,
-        });
-
-        acc.converted.push(milliseconds);
-        acc.queue.push(durationNumber);
-
-        return acc;
-      },
-      { converted: [] as number[], queue: [] as number[] },
-    );
-
-    setTimeItems({
-      ...timeItems,
-      autoMode: true,
-      totalMilliseconds: converted[0],
-      workQueue: converted,
-      stepperQueue: queue,
-    });
-
-    setActiveStep(0);
+    timer.command({ type: "program", sessions });
     showToast();
     reset();
     onClose();
@@ -199,6 +173,7 @@ const ScheduleModal = ({ isOpen, onClose }: ModalProps) => {
                       <Input
                         className="my-2 placeholder-gray-600"
                         type="number"
+                        min={1}
                         placeholder={`Session ${index + 1}`}
                         required
                         {...register(`sessions.${index}.duration`)}

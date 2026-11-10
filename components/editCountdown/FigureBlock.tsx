@@ -3,54 +3,38 @@
 import { IconButton } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
-import React, { useContext } from "react";
+import { useContext } from "react";
 import { DataContext } from "@/providers/DataProvider";
+import type { DurationUnit } from "@/lib/countdown";
 
-interface FigureBlockProps {
-  toggle: "hours" | "minutes" | "seconds";
+export default function FigureBlock({
+  unit,
+  value,
+}: {
+  unit: DurationUnit;
   value: number;
-}
-
-const FigureBlock = ({ toggle, value }: FigureBlockProps) => {
-  const { setTimeItems } = useContext(DataContext);
-
-  const toggleUp = () => {
-    setTimeItems((prevTimeItems) => {
-      const newValue =
-        toggle === "hours"
-          ? (prevTimeItems.hours + 1) % 100
-          : (prevTimeItems[toggle] + 1) % 60;
-
-      return { ...prevTimeItems, [toggle]: newValue };
-    });
-  };
-
-  const toggleDown = () => {
-    setTimeItems((prevTimeItems) => {
-      const newValue =
-        toggle === "hours"
-          ? (prevTimeItems.hours - 1 + 100) % 100
-          : (prevTimeItems[toggle] - 1 + 60) % 60;
-
-      return { ...prevTimeItems, [toggle]: newValue };
-    });
-  };
+}) {
+  const { timer } = useContext(DataContext);
 
   return (
-    <div className="flex flex-col h-full justify-center items-center">
-      <IconButton onClick={toggleUp}>
+    <div className="flex h-full flex-col items-center justify-center">
+      <IconButton
+        aria-label={`Increase ${unit}`}
+        onClick={() => timer.command({ type: "adjust", unit, amount: 1 })}
+      >
         <AddIcon className="text-primary text-[40px] md:text-[50px]" />
       </IconButton>
 
-      <h1 className="text-white font-bold size-hour-included">
-        {value < 10 ? `0${value}` : value}
+      <h1 className="size-hour-included font-bold text-white">
+        {String(value).padStart(2, "0")}
       </h1>
 
-      <IconButton onClick={toggleDown}>
+      <IconButton
+        aria-label={`Decrease ${unit}`}
+        onClick={() => timer.command({ type: "adjust", unit, amount: -1 })}
+      >
         <RemoveIcon className="text-primary text-[40px] md:text-[50px]" />
       </IconButton>
     </div>
   );
-};
-
-export default FigureBlock;
+}

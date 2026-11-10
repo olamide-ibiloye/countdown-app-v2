@@ -4,13 +4,11 @@ const config = [
   { ignores: [".next/**", "out/**", "build/**", "next-env.d.ts"] },
   ...nextVitals,
   {
-    // Keep existing hydration and timer effects visible during the lint migration.
+    // Keep existing hydration effects visible during the lint migration.
     files: [
       "app/(root)/pages/*.tsx",
-      "components/alert/Alert.tsx",
       "components/modeToggle/ModeToggle.tsx",
       "components/schedule/ScheduleModal.tsx",
-      "providers/DataProvider.tsx",
     ],
     rules: { "react-hooks/set-state-in-effect": "warn" },
   },

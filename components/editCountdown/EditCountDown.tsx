@@ -1,46 +1,29 @@
-"use client";
-
-import React, { useContext } from "react";
-import { DataContext } from "@/providers/DataProvider";
 import FigureBlock from "./FigureBlock";
+import { getDurationPart } from "@/lib/countdown";
 
-const fontStyle = {
-  color: "white",
-  fontWeight: 900,
-  fontSize: {
-    xs: 70,
-    sm: 70,
-    md: 120,
-    lg: 120,
-    xl: 120,
-  },
-  justifyContent: "center",
-  display: "flex",
-  alignItems: "center",
-};
-
-const EditCountDown = () => {
-  const { timeItems } = useContext(DataContext);
-
+export default function EditCountDown({ durationMs }: { durationMs: number }) {
   return (
-    <div className="flex justify-center items-center  h-[calc(100vh-280px)]">
+    <div className="flex h-[calc(100vh-280px)] items-center justify-center">
       <div className="flex">
-        <FigureBlock value={timeItems.hours} toggle="hours" />
-
-        <h1 className="size-hour-included flex justify-center items-center">
+        <FigureBlock
+          unit="hours"
+          value={getDurationPart(durationMs, "hours")}
+        />
+        <span className="size-hour-included flex items-center justify-center">
           :
-        </h1>
-
-        <FigureBlock value={timeItems.minutes} toggle="minutes" />
-
-        <h1 className="size-hour-included flex justify-center items-center">
+        </span>
+        <FigureBlock
+          unit="minutes"
+          value={getDurationPart(durationMs, "minutes")}
+        />
+        <span className="size-hour-included flex items-center justify-center">
           :
-        </h1>
-
-        <FigureBlock value={timeItems.seconds} toggle="seconds" />
+        </span>
+        <FigureBlock
+          unit="seconds"
+          value={getDurationPart(durationMs, "seconds")}
+        />
       </div>
     </div>
   );
-};
-
-export default EditCountDown;
+}

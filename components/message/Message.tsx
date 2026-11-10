@@ -8,16 +8,16 @@ import EditMessageModal from "../editMessage/EditMessageModal";
 const Message = () => {
   const {
     message: { message },
-    editMode,
-    setEditMode,
+    messageEditMode,
+    setMessageEditMode,
     feature,
   } = useContext(DataContext);
 
-  return editMode ? (
+  return messageEditMode ? (
     <EditMessageModal
-      isOpen={editMode && feature === "message"}
+      isOpen={messageEditMode && feature === "message"}
       onClose={() => {
-        setEditMode(false);
+        setMessageEditMode(false);
       }}
     />
   ) : (

@@ -5,12 +5,12 @@ import React, { useContext } from "react";
 import { Button } from "../ui/button";
 
 const SetMessage = () => {
-  const { setEditMode } = useContext(DataContext);
+  const { setMessageEditMode } = useContext(DataContext);
 
   return (
     <Button
       onClick={() => {
-        setEditMode(true);
+        setMessageEditMode(true);
       }}
       variant="outline"
       className={"timer-button"}

@@ -6,23 +6,10 @@ import { useHotkeys } from "react-hotkeys-hook";
 import Navbar from "@/components/nav/Navbar";
 import Sidebar from "@/components/nav/Sidebar";
 import { DataContext } from "@/providers/DataProvider";
-import { handlePlayToggle } from "@/components/buttons/PlayAndPause";
-import { toggleReset } from "@/components/buttons/Reset";
 
 const RootLayout = ({ children }: { children: ReactNode }) => {
-  const {
-    isFullscreen,
-    setFeature,
-    setIsFullscreen,
-    setIsPlaying,
-    isPlaying,
-    setEditMode,
-    editMode,
-    setTimeItems,
-    timeItems,
-    setActiveStep,
-    feature,
-  } = useContext(DataContext);
+  const { isFullscreen, setFeature, setIsFullscreen, timer, feature } =
+    useContext(DataContext);
 
   useHotkeys("ctrl+shift+h", () => setFeature("home"));
   useHotkeys("ctrl+shift+a", () => setFeature("auto-pilot"));
@@ -30,22 +17,22 @@ const RootLayout = ({ children }: { children: ReactNode }) => {
   useHotkeys("ctrl+shift+t", () => setFeature("time"));
   useHotkeys("ctrl+shift+m", () => setFeature("message"));
   useHotkeys("ctrl+shift+f", () => setIsFullscreen(!isFullscreen));
-  useHotkeys("ctrl+shift+r", () =>
-    toggleReset({ setIsPlaying, setTimeItems, setActiveStep, timeItems }),
-  );
-  useHotkeys("space", () => {
-    if (feature === "auto-pilot") {
+  const onTimerPage = feature === "countdown" || feature === "auto-pilot";
+  useHotkeys("ctrl+shift+r", (event) => {
+    if (!onTimerPage) return;
+    event.preventDefault();
+    timer.command({ type: "reset" });
+  });
+  useHotkeys("space", (event) => {
+    if (!onTimerPage || (feature === "auto-pilot" && !timer.sessions.length))
       return;
-    }
-
-    return handlePlayToggle({
-      setIsPlaying,
-      isPlaying,
-      setEditMode,
-      editMode,
-      setTimeItems,
-      timeItems,
-    });
+    if (
+      event.target instanceof HTMLElement &&
+      event.target.closest("button, [role=button], [role=dialog]")
+    )
+      return;
+    event.preventDefault();
+    timer.command({ type: "toggle" });
   });
 
   return (

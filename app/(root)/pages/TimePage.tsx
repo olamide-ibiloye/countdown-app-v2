@@ -7,13 +7,12 @@ import { DataContext } from "@/providers/DataProvider";
 import React, { useContext, useEffect, useState } from "react";
 
 const TimePage = () => {
-  const { isVisible, setFeature } = useContext(DataContext);
+  const { isVisible } = useContext(DataContext);
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
-    setFeature("time");
-  }, [setFeature]);
+  }, []);
 
   return isClient ? (
     <div className="flex size-full flex-col">

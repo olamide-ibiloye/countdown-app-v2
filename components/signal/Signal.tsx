@@ -1,87 +1,44 @@
-"use client";
-
-import { DataContext } from "@/providers/DataProvider";
-import { getMilliseconds } from "@/utils/functions";
-import CloseIcon from "@mui/icons-material/Close";
 import { IconButton } from "@mui/material";
-import React, { useContext, useEffect, useState } from "react";
+import CloseIcon from "@mui/icons-material/Close";
+import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 
 interface SignalProps {
   message: string;
-  closeButton?: boolean;
-  skipButton?: boolean;
-  style?: React.CSSProperties;
+  onClose?: () => void;
+  nextSession?: { seconds: number; onSkip: () => void };
 }
 
-const Signal = ({
-  message,
-  closeButton = true,
-  skipButton = false,
-}: SignalProps) => {
-  const {
-    setShowAlert,
-    setIsPlaying,
-    setActiveStep,
-    setTimeItems,
-    timeItems,
-    setShowTimeUp,
-    WAIT_TIME,
-  } = useContext(DataContext);
-
-  const [timeLeft, setTimeLeft] = useState(WAIT_TIME / 1000);
-
-  const handleClick = () => {
-    setShowAlert(false);
-    setIsPlaying(false);
-    setActiveStep(0);
-    setShowTimeUp(false);
-
-    setTimeItems((prevState) => ({
-      ...prevState,
-      totalMilliseconds: getMilliseconds(timeItems),
-      autoMode: false,
-      workQueue: [],
-      stepperQueue: [],
-    }));
-  };
-
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (timeLeft > 0) {
-        setTimeLeft((prevTime) => prevTime - 1);
-      }
-    }, 1000);
-
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [timeLeft]);
-
-  return (
-    <div className="absolute inset-0 h-screen w-screen bg-white">
-      <div className="flex size-full animate-flash flex-col items-center justify-center gap-10 px-5">
-        {closeButton && (
-          <IconButton
-            className="absolute right-[2%] top-[7%]"
-            onClick={handleClick}
-          >
-            <CloseIcon className="animate-flash rounded-full p-2 text-[40px] md:text-[60px]" />
-          </IconButton>
-        )}
-
-        <h1 className="size-message text-balance text-center font-bold leading-none">
-          {message.toUpperCase()}
-        </h1>
-
-        {skipButton && (
-          <Button className=" w-[200px] p-6 text-xs text-white lg:text-lg">
-            Next Session In <span className="pl-4">{`(${timeLeft})`}</span>
-          </Button>
-        )}
+const Signal = ({ message, onClose, nextSession }: SignalProps) => (
+  <div
+    className={cn(
+      "inset-0 bg-white",
+      onClose ? "fixed z-50" : "absolute h-screen w-screen",
+    )}
+  >
+    {onClose && (
+      <div className="absolute right-4 top-4 z-10 sm:right-8 sm:top-8">
+        <IconButton aria-label="Dismiss Time's Up" onClick={onClose}>
+          <CloseIcon sx={{ fontSize: { xs: 40, sm: 56 } }} />
+        </IconButton>
       </div>
+    )}
+
+    <div className="flex size-full animate-flash flex-col items-center justify-center gap-10 px-5">
+      <h1 className="size-message text-balance text-center font-bold leading-none">
+        {message.toUpperCase()}
+      </h1>
+
+      {nextSession && (
+        <Button
+          className="w-[200px] p-6 text-xs text-white lg:text-lg"
+          onClick={nextSession.onSkip}
+        >
+          Next Session In <span className="pl-4">({nextSession.seconds})</span>
+        </Button>
+      )}
     </div>
-  );
-};
+  </div>
+);
 
 export default Signal;
