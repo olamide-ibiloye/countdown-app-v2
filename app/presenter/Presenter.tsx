@@ -296,8 +296,12 @@ function Console({
           >
             {resolvedTheme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
           </button>
-          <Link className="aeon-button aeon-quiet" href="/" prefetch={false}>
-            Classic v2 <ArrowUpRight size={14} />
+          <Link
+            className="aeon-button aeon-quiet"
+            href="/classic"
+            prefetch={false}
+          >
+            Switch to Classic Timer (v2)
           </Link>
         </div>
       </header>
