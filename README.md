@@ -14,6 +14,8 @@ Wait for **Offline ready** on the first visit before disconnecting from the inte
 
 Use **Save Queue** to keep a named lineup and **Load Queue** to reuse it. Saved lineups are stored in this browser and work offline. Loading replaces the planned queue while the live timer and stage output continue.
 
+Use **Image → Import Images** to keep PNG, JPEG, and WebP graphics available offline in this browser. **Send Image to Stage** shows the image without stopping an active countdown. **Fit** shows the whole graphic by default. **Fill Screen** crops the image to cover the display. Changing the fit of a live image takes effect immediately. Switch the stage output before deleting its live image.
+
 ## Features
 
 ### Countdown Feature

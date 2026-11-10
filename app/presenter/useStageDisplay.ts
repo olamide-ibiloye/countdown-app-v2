@@ -36,7 +36,7 @@ function readLastConfirmation() {
 interface StageReport {
   type: "report";
   stageId: string;
-  revision: number;
+  revision?: number;
   fullscreen: boolean;
   screen?: string;
   at: number;
@@ -307,8 +307,12 @@ export function useStageConnection(
   };
 }
 
-export function useStageReports(revision: number | undefined, screen?: string) {
-  const [stageId] = useState(() => crypto.randomUUID());
+export function useStageReports(
+  revision: number | undefined,
+  stageId: string,
+  screen?: string,
+  outputReady = true,
+) {
   useEffect(() => {
     if (revision === undefined) return;
     const channel = new BroadcastChannel(STAGE_CHANNEL);
@@ -347,7 +351,7 @@ export function useStageReports(revision: number | undefined, screen?: string) {
       const report: StageReport = {
         type: "report",
         stageId,
-        revision,
+        revision: outputReady ? revision : undefined,
         fullscreen: Boolean(document.fullscreenElement),
         screen,
         at: Date.now(),
@@ -371,5 +375,5 @@ export function useStageReports(revision: number | undefined, screen?: string) {
       window.removeEventListener("pagehide", onPageHide);
       channel.close();
     };
-  }, [revision, screen, stageId]);
+  }, [revision, screen, stageId, outputReady]);
 }

@@ -5,10 +5,12 @@ import { cn } from "@/lib/utils";
 import parse, { domToReact, Element, type DOMNode } from "html-react-parser";
 import {
   clockFormat,
+  formatPresenterClock,
   remainingTime,
   warningMinutes,
   type PresenterEvent,
 } from "@/lib/presenter";
+import { StageImage } from "./LocalImage";
 import { useStageClock } from "./usePresenter";
 import {
   STAGE_FULLSCREEN,
@@ -52,10 +54,12 @@ export function StageContent({
   event,
   now,
   preview = false,
+  onImageReady,
 }: {
   event: PresenterEvent;
   now: number;
   preview?: boolean;
+  onImageReady?: (imageId: string) => void;
 }) {
   const { output, timer } = event;
   const remaining = timer && now ? remainingTime(timer, now) : 0;
@@ -72,12 +76,7 @@ export function StageContent({
         ? `${warning} MINUTE${warning === 1 ? "" : "S"} LEFT`
         : clockFormat(remaining);
   } else if (output.kind === "clock" && now) {
-    content = new Date(now).toLocaleTimeString("en-GB", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: !output.twentyFourHours,
-    });
+    content = formatPresenterClock(now, output.twentyFourHours);
   }
   const Heading = preview ? "div" : "h1";
 
@@ -86,6 +85,7 @@ export function StageContent({
       className={cn(
         "aeon-output",
         output.kind === "standby" && "aeon-standby",
+        output.kind === "image" && "aeon-image-output",
         alert && "aeon-alert motion-safe:animate-flash",
       )}
     >
@@ -103,12 +103,40 @@ export function StageContent({
           {content}
         </Heading>
       )}
+      {output.kind === "image" && (
+        <StageImage
+          key={output.imageId}
+          {...output}
+          preview={preview}
+          onReady={onImageReady}
+        />
+      )}
       {output.kind === "message" && (
         <div className="aeon-stage-message">
           {parse(output.html, messageOptions)}
         </div>
       )}
     </div>
+  );
+}
+
+function ReportedStageContent({
+  event,
+  now,
+  screen,
+  stageId,
+}: {
+  event: PresenterEvent;
+  now: number;
+  screen?: string;
+  stageId: string;
+}) {
+  const [loadedImageId, setLoadedImageId] = useState<string>();
+  const ready =
+    event.output.kind !== "image" || loadedImageId === event.output.imageId;
+  useStageReports(now ? event.revision : undefined, stageId, screen, ready);
+  return (
+    <StageContent event={event} now={now} onImageReady={setLoadedImageId} />
   );
 }
 
@@ -125,7 +153,7 @@ export function StageWindow({
   const { details } = useDisplayDetails(true);
   const [fullscreen, setFullscreen] = useState(false);
   const [message, setMessage] = useState("");
-  useStageReports(now ? event.revision : undefined, details?.current);
+  const [stageId] = useState(() => crypto.randomUUID());
 
   const enterFullscreen = useCallback(async () => {
     try {
@@ -179,7 +207,13 @@ export function StageWindow({
 
   return (
     <main className="aeon-stage-window">
-      <StageContent event={event} now={now} />
+      <ReportedStageContent
+        key={event.output.kind === "image" ? event.output.imageId : "standard"}
+        event={event}
+        now={now}
+        screen={details?.current}
+        stageId={stageId}
+      />
       {!fullscreen && (
         <div className="aeon-stage-setup">
           <button type="button" onClick={enterFullscreen}>
