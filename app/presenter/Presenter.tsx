@@ -87,7 +87,7 @@ function Console({
     timer?.phase === "running" ? timer.deadline : undefined,
   );
   const offline = useOffline();
-  const { details, enable } = useDisplayDetails(true);
+  const { details, enable, supportsPlacement } = useDisplayDetails(true);
   const stage = useStageConnection(details, now);
   const [editor, setEditor] = useState<Editor>("countdown");
   const [name, setName] = useState("");
@@ -223,7 +223,7 @@ function Console({
       setPresets(next);
       setFormError("");
     } catch {
-      setFormError("Chrome could not save this preset.");
+      setFormError("Your browser couldn’t save this preset.");
     }
   }
 
@@ -234,7 +234,7 @@ function Console({
       setFullscreenError("");
     } catch {
       setFullscreenError(
-        "Chrome couldn’t enter fullscreen. Try the stage window instead.",
+        "Your browser couldn’t enter fullscreen. Try the stage window instead.",
       );
     }
   }
@@ -292,7 +292,7 @@ function Console({
 
       {storageError && (
         <p className="aeon-error aeon-global-error" role="alert">
-          Chrome could not save event changes. Check that site storage is
+          Your browser couldn’t save event changes. Check that site storage is
           available.
         </p>
       )}
@@ -388,7 +388,7 @@ function Console({
                 <Maximize size={15} /> Single Screen
               </button>
             </div>
-            {!details && (
+            {supportsPlacement && !details && (
               <button
                 type="button"
                 className="aeon-text-button"
@@ -401,6 +401,12 @@ function Console({
               >
                 Enable automatic display placement
               </button>
+            )}
+            {!supportsPlacement && !stage.hint && (
+              <p className="aeon-note">
+                This browser uses manual display placement. Open the stage, drag
+                it to your extended display, and select Fullscreen there.
+              </p>
             )}
             {stage.hint && !live && <p className="aeon-note">{stage.hint}</p>}
             {fullscreenError && (

@@ -135,7 +135,9 @@ export function StageWindow({
       setMessage("");
       return true;
     } catch {
-      setMessage("Use Chrome’s fullscreen command or try the button again.");
+      setMessage(
+        "Use your browser’s fullscreen command or try the button again.",
+      );
       return false;
     }
   }, []);

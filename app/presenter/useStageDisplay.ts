@@ -49,6 +49,11 @@ type StageMessage =
   | { type: "disconnect" | "disconnected" | "close-blocked"; stageId: string };
 
 export function useDisplayDetails(enabled: boolean) {
+  const [supportsPlacement] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      typeof displayWindow().getScreenDetails === "function",
+  );
   const [details, setDetails] = useState<{
     screens: Display[];
     current: string;
@@ -67,7 +72,7 @@ export function useDisplayDetails(enabled: boolean) {
   }
 
   useEffect(() => {
-    if (!enabled || !displayWindow().getScreenDetails) return;
+    if (!enabled || !supportsPlacement || !navigator.permissions?.query) return;
     let permission: PermissionStatus | undefined;
     let cancelled = false;
     const onPermission = () => {
@@ -95,7 +100,7 @@ export function useDisplayDetails(enabled: boolean) {
       cancelled = true;
       permission?.removeEventListener("change", onPermission);
     };
-  }, [enabled]);
+  }, [enabled, supportsPlacement]);
 
   useEffect(() => {
     if (!screenDetails) return;
@@ -113,7 +118,11 @@ export function useDisplayDetails(enabled: boolean) {
     };
   }, [screenDetails]);
 
-  return { details: screenDetails ? details : undefined, enable };
+  return {
+    details: screenDetails ? details : undefined,
+    enable,
+    supportsPlacement,
+  };
 }
 
 export function useStageConnection(
@@ -144,7 +153,7 @@ export function useStageConnection(
           event.source === popup.current)
       ) {
         setHint(
-          "Chrome blocked fullscreen from the dashboard. Press F in the stage window.",
+          "Your browser blocked fullscreen from the dashboard. Press F in the stage window.",
         );
       }
       if (
@@ -174,7 +183,7 @@ export function useStageConnection(
           setHint("");
         } else {
           setHint(
-            "Chrome couldn’t close the stage window. Close it manually to return to the desktop.",
+            "Your browser couldn’t close the stage window. Close it manually to return to the desktop.",
           );
         }
         return;
@@ -217,28 +226,41 @@ export function useStageConnection(
     }
     if (!popup.current) {
       setHint(
-        "Chrome blocked the stage window. Allow pop-ups for this site and try again.",
+        "Your browser blocked the stage window. Allow pop-ups for this site and try again.",
       );
       return;
     }
     popup.current.focus();
     setHint(
       external
-        ? "If Chrome leaves the stage windowed, press F in the stage window or select Fullscreen."
-        : "Drag the stage window to the HDMI display, then press F or select Fullscreen.",
+        ? "Select Fullscreen Stage when you’re ready to present."
+        : "Drag the stage window to the extended display. Press F or select Fullscreen in that window.",
     );
   }
 
   function disconnect() {
     if (!report || !channelRef.current || disconnectRequest.current) return;
     const { stageId } = report;
+    const reported = reportingWindow.current;
+    const target = reported?.stageId === stageId ? reported.window : undefined;
     setHint("");
+    if (target && !target.closed && !report.fullscreen) target.close();
+    if (target?.closed) {
+      setReport(undefined);
+      return;
+    }
     setDisconnecting(true);
     disconnectRequest.current = {
       stageId,
       timeout: window.setTimeout(() => {
         disconnectRequest.current = null;
         setDisconnecting(false);
+        if (target?.closed) {
+          setReport((current) =>
+            current?.stageId === stageId ? undefined : current,
+          );
+          return;
+        }
         setHint(
           "The stage didn’t confirm it closed. If it’s still open, close the stage window manually.",
         );
@@ -255,9 +277,7 @@ export function useStageConnection(
     const target =
       reported?.stageId === report?.stageId ? reported?.window : popup.current;
     if (!target || target.closed) {
-      setHint(
-        "Use Open Stage Display to reconnect, then try Fullscreen Stage again.",
-      );
+      setHint("Use Open Stage to reconnect, then try Fullscreen Stage again.");
       return;
     }
     const options: WindowPostMessageOptions & { delegate: string } = {
@@ -268,7 +288,7 @@ export function useStageConnection(
       target.postMessage(STAGE_FULLSCREEN, options);
     } catch {
       setHint(
-        "Chrome couldn’t send fullscreen to the stage. Press F in the stage window.",
+        "Your browser couldn’t send fullscreen to the stage. Press F in the stage window.",
       );
     }
   }
@@ -305,17 +325,22 @@ export function useStageReports(revision: number | undefined, screen?: string) {
       if (data?.type !== "disconnect" || data.stageId !== stageId || closing)
         return;
       closing = true;
-      window.close();
-      closeTimeout = window.setTimeout(() => {
-        if (window.closed) return;
-        closing = false;
-        if (document.fullscreenElement)
-          void document.exitFullscreen().catch(() => {});
-        channel.postMessage({
-          type: "close-blocked",
-          stageId,
-        } satisfies StageMessage);
-      }, 250);
+      function closeStage() {
+        window.close();
+        closeTimeout = window.setTimeout(() => {
+          if (window.closed) return;
+          closing = false;
+          channel.postMessage({
+            type: "close-blocked",
+            stageId,
+          } satisfies StageMessage);
+        }, 250);
+      }
+      if (document.fullscreenElement) {
+        void document.exitFullscreen().then(closeStage, closeStage);
+      } else {
+        closeStage();
+      }
     };
     const send = () => {
       if (closing) return;

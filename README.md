@@ -6,9 +6,11 @@ Aeon Timer is a countdown Next.js application hosted at [Aeon Timer](https://aeo
 
 Choose **Try Presenter v3** from Classic to open the presenter console. The **Classic v2** link returns to the original timer and Auto Pilot.
 
-Use Chrome to open the stage window on an extended display, or choose **Single Screen** for fullscreen on the operator’s screen. The stage opens in a window. Move it to the HDMI display if necessary, then select **Fullscreen Stage** in the dashboard. Enable display placement in the console to let Chrome verify which screen the stage is using.
+Use **Open Stage** for an extended display or **Single Screen** for fullscreen on the operator’s screen. In Chrome or Edge, allow automatic display placement and use **Fullscreen Stage** from the dashboard. On Windows, choose **Extend** with **Windows + P** before opening the stage.
 
-Wait for **Offline ready** on the first visit before disconnecting from the internet. The production build caches the console and stage window locally. The session queue and the current event are also stored in Chrome on this device. **End Event** clears the live output and timer while keeping the queue and presets.
+In Safari, open the stage, drag its window onto the extended display, and choose **Fullscreen** in the stage window. If Safari opens the stage as a tab, choose **Window → Move Tab to New Window** first. Presenter can still confirm the stage window is responding, while its physical display placement remains unverified.
+
+Wait for **Offline ready** on the first visit before disconnecting from the internet. The production build caches the console and stage window locally. The session queue and the current event are also stored in your browser on this device. **End Event** clears the live output and timer while keeping the queue and presets.
 
 Use **Save Queue** to keep a named lineup and **Load Queue** to reuse it. Saved lineups are stored in this browser and work offline. Loading replaces the planned queue while the live timer and stage output continue.
 
