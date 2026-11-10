@@ -10,7 +10,12 @@ import {
   type PresenterEvent,
 } from "@/lib/presenter";
 import { useStageClock } from "./usePresenter";
-import { useDisplayDetails, useStageReports } from "./useStageDisplay";
+import {
+  STAGE_FULLSCREEN,
+  STAGE_FULLSCREEN_BLOCKED,
+  useDisplayDetails,
+  useStageReports,
+} from "./useStageDisplay";
 
 const messageTags = new Set([
   "p",
@@ -128,8 +133,10 @@ export function StageWindow({
         navigationUI: "hide",
       });
       setMessage("");
+      return true;
     } catch {
       setMessage("Use Chrome’s fullscreen command or try the button again.");
+      return false;
     }
   }, []);
 
@@ -141,18 +148,30 @@ export function StageWindow({
       e.preventDefault();
       void enterFullscreen();
     }
+    function onMessage(event: MessageEvent) {
+      if (
+        event.origin === location.origin &&
+        event.source === window.opener &&
+        event.data === STAGE_FULLSCREEN &&
+        !document.fullscreenElement
+      ) {
+        void enterFullscreen().then((entered) => {
+          if (!entered)
+            window.opener?.postMessage(
+              STAGE_FULLSCREEN_BLOCKED,
+              location.origin,
+            );
+        });
+      }
+    }
     document.addEventListener("fullscreenchange", onChange);
     window.addEventListener("keydown", onKey);
+    window.addEventListener("message", onMessage);
     onChange();
-    // Chrome may allow automatic fullscreen for this site. Otherwise keep the stage button available.
-    if (!document.fullscreenElement) {
-      void document.documentElement
-        .requestFullscreen({ navigationUI: "hide" })
-        .catch(() => {});
-    }
     return () => {
       document.removeEventListener("fullscreenchange", onChange);
       window.removeEventListener("keydown", onKey);
+      window.removeEventListener("message", onMessage);
     };
   }, [enterFullscreen]);
 

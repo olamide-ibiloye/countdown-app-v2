@@ -6,7 +6,7 @@ Aeon Timer is a countdown Next.js application hosted at [Aeon Timer](https://aeo
 
 Choose **Try Presenter v3** from Classic to open the presenter console. The **Classic v2** link returns to the original timer and Auto Pilot.
 
-Use Chrome to open the stage window on an extended display, or choose **Single Screen** for fullscreen on the operator’s screen. If Chrome leaves the stage windowed, move it to the HDMI display if necessary and select **Fullscreen** in that window. Enable display placement in the console to let Chrome verify which screen the stage is using.
+Use Chrome to open the stage window on an extended display, or choose **Single Screen** for fullscreen on the operator’s screen. The stage opens in a window. Move it to the HDMI display if necessary, then select **Fullscreen Stage** in the dashboard. Enable display placement in the console to let Chrome verify which screen the stage is using.
 
 Wait for **Offline ready** on the first visit before disconnecting from the internet. The production build caches the console and stage window locally. The session queue and the current event are also stored in Chrome on this device. **End Event** clears the live output and timer while keeping the queue and presets.
 

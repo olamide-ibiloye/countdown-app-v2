@@ -2,30 +2,30 @@
 
 import RichTextEditor from "@/components/editMessage/RichTextEditor";
 import {
-    ADD_TIME_MS,
-    clockFormat,
-    parseDuration,
-    remainingTime,
-    type PresenterCommand,
-    type PresenterEvent,
-    type Session,
+  ADD_TIME_MS,
+  clockFormat,
+  parseDuration,
+  remainingTime,
+  type PresenterCommand,
+  type PresenterEvent,
+  type Session,
 } from "@/lib/presenter";
 import {
-    ArrowDown,
-    ArrowUp,
-    ArrowUpRight,
-    Clock3,
-    Maximize,
-    Monitor,
-    MonitorOff,
-    MonitorUp,
-    Moon,
-    Plus,
-    Radio,
-    Sun,
-    Timer,
-    Trash2,
-    Type,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpRight,
+  Clock3,
+  Maximize,
+  Monitor,
+  MonitorOff,
+  MonitorUp,
+  Moon,
+  Plus,
+  Radio,
+  Sun,
+  Timer,
+  Trash2,
+  Type,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import Link from "next/link";
@@ -359,6 +359,16 @@ function Console({
               >
                 <MonitorUp size={16} /> Open Stage
               </button>
+              {stage.connected && !stage.report?.fullscreen && (
+                <button
+                  type="button"
+                  className="aeon-button"
+                  disabled={stage.disconnecting}
+                  onClick={stage.fullscreen}
+                >
+                  <Maximize size={15} /> Fullscreen Stage
+                </button>
+              )}
               {(stage.connected || stage.disconnecting) && (
                 <button
                   type="button"

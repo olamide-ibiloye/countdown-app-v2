@@ -21,6 +21,8 @@ type DisplayWindow = Window & {
 };
 const displayWindow = () => window as DisplayWindow;
 const screenKey = (screen: Display) => `${screen.left},${screen.top}`;
+export const STAGE_FULLSCREEN = "aeon-stage-fullscreen";
+export const STAGE_FULLSCREEN_BLOCKED = "aeon-stage-fullscreen-blocked";
 const LAST_REPORT_KEY = "aeonStageLastConfirmed:v1";
 
 function readLastConfirmation() {
@@ -123,6 +125,9 @@ export function useStageConnection(
   const [disconnecting, setDisconnecting] = useState(false);
   const [hint, setHint] = useState("");
   const popup = useRef<Window | null>(null);
+  const reportingWindow = useRef<{ stageId: string; window: Window } | null>(
+    null,
+  );
   const channelRef = useRef<BroadcastChannel | null>(null);
   const disconnectRequest = useRef<{ stageId: string; timeout: number } | null>(
     null,
@@ -131,6 +136,29 @@ export function useStageConnection(
   useEffect(() => {
     const channel = new BroadcastChannel(STAGE_CHANNEL);
     channelRef.current = channel;
+    function rememberStage(event: MessageEvent<StageMessage | string>) {
+      if (event.origin !== location.origin || !event.source) return;
+      if (
+        event.data === STAGE_FULLSCREEN_BLOCKED &&
+        (event.source === reportingWindow.current?.window ||
+          event.source === popup.current)
+      ) {
+        setHint(
+          "Chrome blocked fullscreen from the dashboard. Press F in the stage window.",
+        );
+      }
+      if (
+        typeof event.data === "object" &&
+        event.data?.type === "report" &&
+        "closed" in event.source
+      ) {
+        reportingWindow.current = {
+          stageId: event.data.stageId,
+          window: event.source,
+        };
+      }
+    }
+    window.addEventListener("message", rememberStage);
     channel.onmessage = ({ data }: MessageEvent<StageMessage>) => {
       if (
         (data?.type === "disconnected" || data?.type === "close-blocked") &&
@@ -164,6 +192,7 @@ export function useStageConnection(
       if (disconnectRequest.current)
         clearTimeout(disconnectRequest.current.timeout);
       channelRef.current = null;
+      window.removeEventListener("message", rememberStage);
       channel.close();
     };
   }, []);
@@ -221,12 +250,36 @@ export function useStageConnection(
     } satisfies StageMessage);
   }
 
+  function fullscreen() {
+    const reported = reportingWindow.current;
+    const target =
+      reported?.stageId === report?.stageId ? reported?.window : popup.current;
+    if (!target || target.closed) {
+      setHint(
+        "Use Open Stage Display to reconnect, then try Fullscreen Stage again.",
+      );
+      return;
+    }
+    const options: WindowPostMessageOptions & { delegate: string } = {
+      targetOrigin: location.origin,
+      delegate: "fullscreen",
+    };
+    try {
+      target.postMessage(STAGE_FULLSCREEN, options);
+    } catch {
+      setHint(
+        "Chrome couldn’t send fullscreen to the stage. Press F in the stage window.",
+      );
+    }
+  }
+
   return {
     report,
     lastConfirmedAt,
     connected,
     onExtendedDisplay,
     open,
+    fullscreen,
     disconnect,
     disconnecting,
     hint,
@@ -277,6 +330,7 @@ export function useStageReports(revision: number | undefined, screen?: string) {
         height: innerHeight,
       };
       channel.postMessage(report);
+      window.opener?.postMessage(report, location.origin);
     };
     const frame = requestAnimationFrame(send);
     const interval = window.setInterval(send, 1_000);
