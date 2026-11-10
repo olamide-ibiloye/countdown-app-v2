@@ -4,17 +4,20 @@ import RichTextEditor from "@/components/editMessage/RichTextEditor";
 import {
   ADD_TIME_MS,
   clockFormat,
+  formatPresenterClock,
   parseDuration,
   remainingTime,
   type PresenterCommand,
   type PresenterEvent,
   type Session,
+  type StageOutput,
 } from "@/lib/presenter";
 import {
   ArrowDown,
   ArrowUp,
   ArrowUpRight,
   Clock3,
+  ImageIcon,
   Maximize,
   Monitor,
   MonitorOff,
@@ -31,6 +34,7 @@ import { useTheme } from "next-themes";
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import "./presenter.css";
+import ImageLibrary from "./ImageLibrary";
 import QueueMemory from "./QueueMemory";
 import { StageContent, StageWindow } from "./Stage";
 import { useOffline } from "./useOffline";
@@ -70,7 +74,7 @@ function loadPresets(): string[] {
 }
 
 type Dispatch = (command: PresenterCommand) => boolean;
-type Editor = "countdown" | "clock" | "message";
+type Editor = "countdown" | "clock" | "message" | "image";
 
 function Console({
   event,
@@ -87,9 +91,11 @@ function Console({
     timer?.phase === "running" ? timer.deadline : undefined,
   );
   const offline = useOffline();
-  const { details, enable } = useDisplayDetails(true);
+  const { details, enable, supportsPlacement } = useDisplayDetails(true);
   const stage = useStageConnection(details, now);
   const [editor, setEditor] = useState<Editor>("countdown");
+  const [imagePreviewTarget, setImagePreviewTarget] =
+    useState<HTMLDivElement | null>(null);
   const [name, setName] = useState("");
   const [duration, setDuration] = useState("05:00");
   const [editing, setEditing] = useState<string>();
@@ -100,6 +106,12 @@ function Console({
   const [message, setMessage] = useState(
     output.kind === "message" ? output.html : "<p></p>",
   );
+  const previewOutput: StageOutput | undefined =
+    editor === "clock"
+      ? { kind: "clock", twentyFourHours }
+      : editor === "message"
+        ? { kind: "message", html: message }
+        : undefined;
   const [formError, setFormError] = useState("");
   const [singleScreen, setSingleScreen] = useState(false);
   const [confirm, setConfirm] = useState<
@@ -223,7 +235,7 @@ function Console({
       setPresets(next);
       setFormError("");
     } catch {
-      setFormError("Chrome could not save this preset.");
+      setFormError("Your browser couldn’t save this preset.");
     }
   }
 
@@ -234,7 +246,7 @@ function Console({
       setFullscreenError("");
     } catch {
       setFullscreenError(
-        "Chrome couldn’t enter fullscreen. Try the stage window instead.",
+        "Your browser couldn’t enter fullscreen. Try the stage window instead.",
       );
     }
   }
@@ -292,7 +304,7 @@ function Console({
 
       {storageError && (
         <p className="aeon-error aeon-global-error" role="alert">
-          Chrome could not save event changes. Check that site storage is
+          Your browser couldn’t save event changes. Check that site storage is
           available.
         </p>
       )}
@@ -341,7 +353,9 @@ function Console({
                     ? timer?.name
                     : output.kind === "clock"
                       ? "Clock"
-                      : "Message"}
+                      : output.kind === "image"
+                        ? output.name
+                        : "Message"}
               </span>
               {stage.lastConfirmedAt && (
                 <span>
@@ -388,7 +402,7 @@ function Console({
                 <Maximize size={15} /> Single Screen
               </button>
             </div>
-            {!details && (
+            {supportsPlacement && !details && (
               <button
                 type="button"
                 className="aeon-text-button"
@@ -402,6 +416,12 @@ function Console({
                 Enable automatic display placement
               </button>
             )}
+            {!supportsPlacement && !stage.hint && (
+              <p className="aeon-note">
+                This browser uses manual display placement. Open the stage, drag
+                it to your extended display, and select Fullscreen there.
+              </p>
+            )}
             {stage.hint && !live && <p className="aeon-note">{stage.hint}</p>}
             {fullscreenError && (
               <p className="aeon-error" role="alert">
@@ -413,12 +433,14 @@ function Console({
           <section className="aeon-panel">
             <div className="aeon-panel-heading">
               <div>
-                <p className="aeon-kicker">
-                  <Timer size={14} /> Countdown
-                </p>
+                {editor === "countdown" && (
+                  <p className="aeon-kicker">
+                    <Timer size={14} /> Countdown
+                  </p>
+                )}
                 <h2>Live controls</h2>
               </div>
-              {timer && (
+              {editor === "countdown" && timer && (
                 <span className="aeon-chip">
                   {finished
                     ? "Finished"
@@ -430,71 +452,118 @@ function Console({
                 </span>
               )}
             </div>
-            {!timer ? (
-              <p className="aeon-note">
-                Send a countdown to stage to make its controls available.
-              </p>
-            ) : (
-              <>
-                <div className="aeon-live-timer">
-                  <span>{timer.name}</span>
-                  <strong>
-                    {finished ? "Time’s Up" : clockFormat(remaining)}
-                  </strong>
-                  {output.kind !== "countdown" && (
-                    <span className="aeon-muted">Off stage</span>
-                  )}
-                </div>
-                <div className="aeon-actions">
-                  <button
-                    type="button"
-                    className="aeon-button aeon-primary"
-                    disabled={finished}
-                    onClick={() =>
-                      dispatch({ type: running ? "pause" : "play" })
-                    }
-                  >
-                    {running ? "Pause" : "Play"}
-                  </button>
-                  <button
-                    type="button"
-                    className="aeon-button"
-                    onClick={() => dispatch({ type: "reset" })}
-                  >
-                    Reset
-                  </button>
-                  {output.kind !== "countdown" && (
+            {editor === "countdown" &&
+              (!timer ? (
+                <p className="aeon-note">
+                  Send a countdown to stage to make its controls available.
+                </p>
+              ) : (
+                <>
+                  <div className="aeon-live-timer">
+                    <span>{timer.name}</span>
+                    <strong>
+                      {finished ? "Time’s Up" : clockFormat(remaining)}
+                    </strong>
+                    {output.kind !== "countdown" && (
+                      <span className="aeon-muted">Off stage</span>
+                    )}
+                  </div>
+                  <div className="aeon-actions">
                     <button
                       type="button"
-                      className="aeon-button"
+                      className="aeon-button aeon-primary"
+                      disabled={finished}
                       onClick={() =>
-                        dispatch({
-                          type: "output",
-                          output: { kind: "countdown" },
-                        })
+                        dispatch({ type: running ? "pause" : "play" })
                       }
                     >
-                      Return Timer to Stage
+                      {running ? "Pause" : "Play"}
                     </button>
-                  )}
-                </div>
-                <div className="aeon-add-time">
-                  <span>Add Time</span>
-                  {ADD_TIME_MS.map((durationMs, index) => (
                     <button
                       type="button"
-                      key={durationMs}
                       className="aeon-button"
-                      disabled={!running}
-                      onClick={() => dispatch({ type: "extend", durationMs })}
+                      onClick={() => dispatch({ type: "reset" })}
                     >
-                      {["+30 sec", "+1 min", "+5 min"][index]}
+                      Reset
                     </button>
-                  ))}
-                </div>
-              </>
+                  </div>
+                  <div className="aeon-add-time">
+                    <span>Add Time</span>
+                    {ADD_TIME_MS.map((durationMs, index) => (
+                      <button
+                        type="button"
+                        key={durationMs}
+                        className="aeon-button"
+                        disabled={!running}
+                        onClick={() => dispatch({ type: "extend", durationMs })}
+                      >
+                        {["+30 sec", "+1 min", "+5 min"][index]}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ))}
+            {editor === "image" && <div ref={setImagePreviewTarget} />}
+            {previewOutput && (
+              <figure className="aeon-live-preview">
+                <figcaption className="aeon-kicker">
+                  {previewOutput.kind === "clock"
+                    ? "Clock preview"
+                    : "Message preview"}
+                </figcaption>
+                {previewOutput.kind === "clock" ? (
+                  <div className="aeon-live-timer">
+                    <strong>
+                      {now
+                        ? formatPresenterClock(
+                            now,
+                            previewOutput.twentyFourHours,
+                          )
+                        : ""}
+                    </strong>
+                  </div>
+                ) : (
+                  <div className="aeon-preview">
+                    <StageContent
+                      event={{ ...event, output: previewOutput }}
+                      now={now}
+                      preview
+                    />
+                  </div>
+                )}
+                <button
+                  type="button"
+                  className="aeon-button aeon-primary aeon-preview-action"
+                  disabled={
+                    previewOutput.kind === "message" &&
+                    !message.replace(/<[^>]+>/g, "").trim()
+                  }
+                  onClick={() =>
+                    dispatch({ type: "output", output: previewOutput })
+                  }
+                >
+                  {previewOutput.kind === "clock"
+                    ? "Send Clock to Stage"
+                    : "Send Message to Stage"}
+                  <ArrowUpRight size={15} />
+                </button>
+              </figure>
             )}
             <div className="aeon-actions aeon-safety-actions">
+              {timer && output.kind !== "countdown" && (
+                <button
+                  type="button"
+                  className="aeon-button"
+                  onClick={() =>
+                    dispatch({
+                      type: "output",
+                      output: { kind: "countdown" },
+                    })
+                  }
+                >
+                  Return Timer to Stage
+                </button>
+              )}
               <button
                 type="button"
                 className="aeon-button aeon-quiet"
@@ -533,6 +602,7 @@ function Console({
                 [
                   { kind: "countdown", label: "Countdown", Icon: Timer },
                   { kind: "clock", label: "Clock", Icon: Clock3 },
+                  { kind: "image", label: "Image", Icon: ImageIcon },
                   { kind: "message", label: "Message", Icon: Type },
                 ] as const
               ).map(({ kind, label, Icon }) => (
@@ -656,39 +726,25 @@ function Console({
                     <option value="12">12-hour</option>
                   </select>
                 </label>
-                <button
-                  type="button"
-                  className="aeon-button aeon-primary"
-                  onClick={() =>
-                    dispatch({
-                      type: "output",
-                      output: { kind: "clock", twentyFourHours },
-                    })
-                  }
-                >
-                  Send Clock to Stage <ArrowUpRight size={15} />
-                </button>
               </div>
             )}
             {editor === "message" && (
               <div className="aeon-editor">
                 <div className="aeon-rich-editor">
-                  <RichTextEditor message={message} onChange={setMessage} />
+                  <RichTextEditor
+                    message={message}
+                    onChange={setMessage}
+                    placeholder="Type your message here"
+                  />
                 </div>
-                <button
-                  type="button"
-                  className="aeon-button aeon-primary"
-                  disabled={!message.replace(/<[^>]+>/g, "").trim()}
-                  onClick={() =>
-                    dispatch({
-                      type: "output",
-                      output: { kind: "message", html: message },
-                    })
-                  }
-                >
-                  Send Message to Stage <ArrowUpRight size={15} />
-                </button>
               </div>
+            )}
+            {editor === "image" && (
+              <ImageLibrary
+                output={output}
+                dispatch={dispatch}
+                previewTarget={imagePreviewTarget}
+              />
             )}
           </section>
 

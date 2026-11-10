@@ -7,9 +7,11 @@ import Toolbar from "./Toolbar";
 const RichTextEditor = ({
   message,
   onChange,
+  placeholder,
 }: {
   message: string;
   onChange: (richText: string) => void;
+  placeholder?: string;
 }) => {
   const editor = useEditor({
     immediatelyRender: false,
@@ -31,6 +33,12 @@ const RichTextEditor = ({
     content: message,
     editorProps: {
       attributes: {
+        ...(placeholder && {
+          role: "textbox",
+          "aria-label": "Message",
+          "aria-multiline": "true",
+          "aria-placeholder": placeholder,
+        }),
         class:
           "flex flex-col px-4 py-3 min-h-[300px] justify-start border-b border-r border-l border-gray-700 text-foreground items-start w-full gap-3 font-medium text-[16px] pt-4 rounded-bl-md rounded-br-md outline-none",
       },
@@ -47,7 +55,17 @@ const RichTextEditor = ({
   return (
     <div>
       <Toolbar editor={editor} />
-      <EditorContent style={{ whiteSpace: "pre-line" }} editor={editor} />
+      <div className="relative">
+        {placeholder && editor.isEmpty && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute left-4 top-4 text-muted-foreground"
+          >
+            {placeholder}
+          </span>
+        )}
+        <EditorContent style={{ whiteSpace: "pre-line" }} editor={editor} />
+      </div>
     </div>
   );
 };

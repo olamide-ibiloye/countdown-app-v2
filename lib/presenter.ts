@@ -28,10 +28,13 @@ type TimerPhase =
 
 export type ActiveTimer = Session & TimerPhase & { warningCeilingMs?: number };
 
+export type ImageFit = "fill" | "fit";
+
 export type StageOutput =
   | { kind: "standby" | "countdown" }
   | { kind: "clock"; twentyFourHours: boolean }
-  | { kind: "message"; html: string };
+  | { kind: "message"; html: string }
+  | { kind: "image"; imageId: string; name: string; fit: ImageFit };
 
 export interface PresenterEvent {
   queue: Session[];
@@ -82,10 +85,20 @@ export function clockFormat(ms: number) {
   return hours ? `${hours}:${minutes}:${seconds}` : `${minutes}:${seconds}`;
 }
 
+export function formatPresenterClock(now: number, twentyFourHours: boolean) {
+  return new Date(now).toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: !twentyFourHours,
+  });
+}
+
 export type PresenterCommand =
   | { type: "queue"; queue: Session[] }
   | { type: "cue"; session: Session }
   | { type: "output"; output: StageOutput }
+  | { type: "image-fit"; imageId: string; fit: ImageFit }
   | { type: "play" | "pause" | "reset" | "end" }
   | { type: "extend"; durationMs: (typeof ADD_TIME_MS)[number] };
 
@@ -110,6 +123,19 @@ export function updateEvent(
   if (command.type === "output") {
     if (command.output.kind === "countdown" && !timer) return event;
     return { ...event, output: command.output, revision: revision + 1 };
+  }
+  if (command.type === "image-fit") {
+    if (
+      output.kind !== "image" ||
+      output.imageId !== command.imageId ||
+      output.fit === command.fit
+    )
+      return event;
+    return {
+      ...event,
+      output: { ...output, fit: command.fit },
+      revision: revision + 1,
+    };
   }
   if (!timer) return event;
 
@@ -186,7 +212,11 @@ export function readPresenterEvent(raw: string | null): PresenterEvent {
         (output.kind === "countdown" && timer) ||
         (output.kind === "clock" &&
           typeof output.twentyFourHours === "boolean") ||
-        (output.kind === "message" && typeof output.html === "string")
+        (output.kind === "message" && typeof output.html === "string") ||
+        (output.kind === "image" &&
+          typeof output.imageId === "string" &&
+          typeof output.name === "string" &&
+          (output.fit === "fill" || output.fit === "fit"))
       )
     )
       return initialEvent;

@@ -547,3 +547,133 @@
 .aeon-queue-memory {
   margin-bottom: 12px;
 }
+
+.aeon-image-library {
+  display: grid;
+  gap: 12px;
+}
+
+.aeon-image-library > .aeon-panel-heading {
+  margin-bottom: 0;
+}
+
+.aeon-image-library h3 {
+  font-weight: 700;
+}
+
+.aeon-image-import {
+  position: relative;
+}
+
+.aeon-image-import input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.aeon-image-import:focus-within > span {
+  outline: 2px solid var(--aeon-accent-ink);
+  outline-offset: 3px;
+}
+
+.aeon-image-import:has(input:disabled) {
+  opacity: 0.55;
+}
+
+.aeon-image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 120px), 1fr));
+  gap: 10px;
+  max-height: 320px;
+  overflow: auto;
+  padding: 3px;
+}
+
+.aeon-image-grid li {
+  position: relative;
+  min-width: 0;
+}
+
+.aeon-image-tile {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--aeon-border);
+  border-radius: 8px;
+  background: var(--aeon-control);
+  text-align: left;
+}
+
+.aeon-image-tile[aria-pressed="true"],
+.aeon-fit-button[aria-pressed="true"] {
+  border-color: var(--aeon-accent-ink);
+  background: var(--aeon-hover);
+  color: var(--aeon-accent-ink);
+}
+
+.aeon-image-thumbnail,
+.aeon-image-preview {
+  display: block;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  background: #000;
+}
+
+.aeon-image-preview {
+  border: 1px solid var(--aeon-border);
+  border-radius: 8px;
+}
+
+.aeon-live-preview {
+  width: min(100%, 320px);
+  margin-top: 14px;
+}
+
+.aeon-preview-action {
+  margin-top: 10px;
+}
+
+.aeon-image-name {
+  display: block;
+  overflow: hidden;
+  padding: 6px 8px;
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aeon-image-delete {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  min-height: 30px;
+  padding: 5px;
+}
+
+.aeon-output.aeon-image-output {
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  padding: 0;
+  background: #000;
+}
+
+.aeon-graphic {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.aeon-graphic-fill {
+  object-fit: cover;
+}
+
+.aeon-graphic-fit {
+  object-fit: contain;
+}
+
+.aeon-image-missing {
+  color: #fff;
+  padding: 12px;
+  font-size: 0.9rem;
+}
