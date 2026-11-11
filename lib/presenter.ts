@@ -161,10 +161,15 @@ export function updateEvent(
       next = { ...session, phase: "ready" };
       break;
     case "extend":
-      if (timer.phase !== "running" || !remainingMs) return event;
+      if (!remainingMs) return event;
+      if (timer.phase === "ready") {
+        next = { ...timer, durationMs: durationMs + command.durationMs };
+        break;
+      }
       next = {
-        ...timer,
-        deadline: timer.deadline + command.durationMs,
+        ...(timer.phase === "running"
+          ? { ...timer, deadline: timer.deadline + command.durationMs }
+          : { ...timer, remainingMs: remainingMs + command.durationMs }),
         warningCeilingMs: Math.max(
           warningCeilingMs ?? durationMs,
           remainingMs + command.durationMs,

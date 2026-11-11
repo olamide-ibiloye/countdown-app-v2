@@ -498,7 +498,7 @@ function Console({
                         type="button"
                         key={durationMs}
                         className="aeon-button"
-                        disabled={!running}
+                        disabled={finished}
                         onClick={() => dispatch({ type: "extend", durationMs })}
                       >
                         {["+30 sec", "+1 min", "+5 min"][index]}
