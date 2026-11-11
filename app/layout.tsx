@@ -1,3 +1,4 @@
+import ScreenWakeLock from "@/components/ScreenWakeLock";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 import { Inter } from "next/font/google";
 import "./globals.css";
@@ -21,6 +22,7 @@ const RootLayout = ({ children }: { children: ReactNode }) => {
           className={`${inter.className} bg-white dark:bg-dark-2`}
           suppressHydrationWarning={true}
         >
+          <ScreenWakeLock />
           <ThemeProvider
             attribute="class"
             defaultTheme="system"
