@@ -1,5 +1,7 @@
 "use client";
 
+import { presenterButton } from "./styles";
+
 import { useId, useState, type FormEvent } from "react";
 import { FolderOpen, Save } from "lucide-react";
 import { isSession, type Session } from "@/lib/presenter";
@@ -103,10 +105,10 @@ export default function QueueMemory({
 
   return (
     <>
-      <div className="aeon-actions aeon-queue-memory">
+      <div className="mb-3 flex flex-wrap items-center gap-[9px]">
         <button
           type="button"
-          className="aeon-button"
+          className={presenterButton()}
           disabled={!queue.length}
           onClick={() => open("save")}
         >
@@ -114,23 +116,26 @@ export default function QueueMemory({
         </button>
         <button
           type="button"
-          className="aeon-button"
+          className={presenterButton()}
           onClick={() => open("load")}
         >
           <FolderOpen size={15} /> Load Queue
         </button>
-        <span className="aeon-muted" role="status">
+        <span className="text-[0.84rem] text-muted-foreground" role="status">
           {status}
         </span>
         {!mode && error && (
-          <span className="aeon-error" role="alert">
+          <span
+            className="text-[0.84rem] text-red-700 dark:text-red-300"
+            role="alert"
+          >
             {error}
           </span>
         )}
       </div>
       {mode && (
         <dialog
-          className="aeon-dialog"
+          className="m-auto w-[min(430px,90vw)] rounded-xl border border-border bg-card p-[22px] text-foreground backdrop:bg-black/60"
           aria-labelledby={titleId}
           ref={(dialog) => {
             if (dialog && !dialog.open) dialog.showModal();
@@ -141,21 +146,28 @@ export default function QueueMemory({
             setMode(undefined);
           }}
         >
-          <h2 id={titleId}>
+          <h2
+            className="text-xl font-bold leading-normal tracking-tight"
+            id={titleId}
+          >
             {mode === "save" ? "Save Session Queue" : "Load Session Queue"}
           </h2>
-          <p>
+          <p className="mb-4 mt-2.5 text-muted-foreground">
             {mode === "save"
               ? "Keep a named copy of this lineup in this browser."
               : saved.length
                 ? "Loading replaces the planned queue. The active timer and stage output continue."
                 : "No saved queues yet. Add sessions to the queue and save a copy first."}
           </p>
-          <form className="aeon-editor" onSubmit={submit}>
+          <form
+            className="grid justify-items-start gap-[13px]"
+            onSubmit={submit}
+          >
             {mode === "save" ? (
-              <label>
+              <label className="grid gap-1.5 text-[0.79rem] font-[650] text-muted-foreground">
                 Queue name
                 <input
+                  className="min-w-0 rounded-[7px] border border-border bg-background px-2.5 py-[9px] text-[0.9rem] text-foreground"
                   required
                   maxLength={80}
                   value={name}
@@ -164,9 +176,10 @@ export default function QueueMemory({
               </label>
             ) : (
               saved.length > 0 && (
-                <label>
+                <label className="grid gap-1.5 text-[0.79rem] font-[650] text-muted-foreground">
                   Saved queue
                   <select
+                    className="min-w-0 rounded-[7px] border border-border bg-background px-2.5 py-[9px] text-[0.9rem] text-foreground"
                     value={selection}
                     onChange={(e) => setSelection(e.target.value)}
                   >
@@ -181,14 +194,17 @@ export default function QueueMemory({
               )
             )}
             {error && (
-              <span className="aeon-error" role="alert">
+              <span
+                className="text-[0.84rem] text-red-700 dark:text-red-300"
+                role="alert"
+              >
                 {error}
               </span>
             )}
-            <div className="aeon-actions">
+            <div className="flex flex-wrap items-center gap-[9px]">
               <button
                 type="button"
-                className="aeon-button"
+                className={presenterButton()}
                 onClick={() => {
                   setError("");
                   setMode(undefined);
@@ -199,7 +215,7 @@ export default function QueueMemory({
               {(mode === "save" || saved.length > 0) && (
                 <button
                   type="submit"
-                  className="aeon-button aeon-primary"
+                  className={presenterButton({ variant: "primary" })}
                   disabled={mode === "save" && !name.trim()}
                 >
                   {mode === "save"
