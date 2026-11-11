@@ -1,6 +1,7 @@
 "use client";
 
 import RichTextEditor from "@/components/editMessage/RichTextEditor";
+import { cn } from "@/lib/utils";
 import {
   ADD_TIME_MS,
   clockFormat,
@@ -783,78 +784,94 @@ function Console({
               </div>
             ) : (
               <ol className="aeon-queue">
-                {queue.map((session, index) => (
-                  <li key={session.id}>
-                    <span className="aeon-order">
-                      {String(index + 1).padStart(2, "0")}
-                    </span>
-                    <div className="aeon-session">
-                      <strong>{session.name}</strong>
-                      <span>
-                        {clockFormat(session.durationMs)}
-                        {session.id === timer?.id
-                          ? " · Current"
-                          : index === nextIndex
-                            ? " · Up next"
-                            : ""}
+                {queue.map((session, index) => {
+                  const current = session.id === timer?.id;
+                  const upNext = !current && index === nextIndex;
+                  return (
+                    <li
+                      key={session.id}
+                      aria-current={current ? "step" : undefined}
+                      className={cn(
+                        current && "aeon-queue-current",
+                        upNext && "aeon-queue-next",
+                      )}
+                    >
+                      <span className="aeon-order">
+                        {String(index + 1).padStart(2, "0")}
                       </span>
-                    </div>
-                    <div className="aeon-queue-actions">
-                      <button
-                        type="button"
-                        className="aeon-button aeon-icon"
-                        aria-label={`Move ${session.name} up`}
-                        disabled={index === 0}
-                        onClick={() => moveSession(index, -1)}
-                      >
-                        <ArrowUp size={15} />
-                      </button>
-                      <button
-                        type="button"
-                        className="aeon-button aeon-icon"
-                        aria-label={`Move ${session.name} down`}
-                        disabled={index === queue.length - 1}
-                        onClick={() => moveSession(index, 1)}
-                      >
-                        <ArrowDown size={15} />
-                      </button>
-                      <button
-                        type="button"
-                        className="aeon-button aeon-icon"
-                        aria-label={`Remove ${session.name}`}
-                        onClick={() => {
-                          dispatch({
-                            type: "queue",
-                            queue: queue.filter(
-                              (item) => item.id !== session.id,
-                            ),
-                          });
-                          if (editing === session.id) {
-                            setEditing(undefined);
-                            setName("");
-                          }
-                        }}
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                      <button
-                        type="button"
-                        className="aeon-button"
-                        onClick={() => editSession(session)}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="aeon-button"
-                        aria-label={`Send ${session.name} to stage`}
-                        onClick={() => cue(session)}
-                      >
-                        Send <ArrowUpRight size={14} />
-                      </button>
-                    </div>
-                  </li>
-                ))}
+                      <div className="aeon-session">
+                        <div className="aeon-session-heading">
+                          <strong>{session.name}</strong>
+                          {(current || upNext) && (
+                            <span
+                              className={cn(
+                                "aeon-queue-status",
+                                current && "aeon-queue-status-current",
+                              )}
+                            >
+                              {current ? "Current" : "Up next"}
+                            </span>
+                          )}
+                        </div>
+                        <span>{clockFormat(session.durationMs)}</span>
+                      </div>
+                      <div className="aeon-queue-actions">
+                        <button
+                          type="button"
+                          className="aeon-button aeon-icon"
+                          aria-label={`Move ${session.name} up`}
+                          disabled={index === 0}
+                          onClick={() => moveSession(index, -1)}
+                        >
+                          <ArrowUp size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          className="aeon-button aeon-icon"
+                          aria-label={`Move ${session.name} down`}
+                          disabled={index === queue.length - 1}
+                          onClick={() => moveSession(index, 1)}
+                        >
+                          <ArrowDown size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          className="aeon-button aeon-icon"
+                          aria-label={`Remove ${session.name}`}
+                          onClick={() => {
+                            dispatch({
+                              type: "queue",
+                              queue: queue.filter(
+                                (item) => item.id !== session.id,
+                              ),
+                            });
+                            if (editing === session.id) {
+                              setEditing(undefined);
+                              setName("");
+                            }
+                          }}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          className="aeon-button"
+                          onClick={() => editSession(session)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="aeon-button"
+                          aria-label={`Send ${session.name} to stage`}
+                          onClick={() => cue(session)}
+                        >
+                          Send <ArrowUpRight size={14} />
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
               </ol>
             )}
           </section>
