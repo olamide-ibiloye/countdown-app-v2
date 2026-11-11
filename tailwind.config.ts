@@ -23,7 +23,16 @@ const config = {
       },
     },
     extend: {
+      fontFamily: {
+        "presenter-mono": [
+          "var(--aeon-font-mono)",
+          "ui-monospace",
+          "monospace",
+        ],
+      },
       colors: {
+        "primary-contrast":
+          "color-mix(in srgb, hsl(var(--primary)) 45%, hsl(var(--primary-foreground)))",
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

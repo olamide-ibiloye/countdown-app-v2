@@ -1,5 +1,7 @@
 "use client";
 
+import { cn } from "@/lib/utils";
+
 import { useEffect, useState } from "react";
 import { getPresenterImage } from "@/lib/presenter-images";
 import type { ImageFit } from "@/lib/presenter";
@@ -40,7 +42,10 @@ export function LocalGraphic({
   return (
     // eslint-disable-next-line @next/next/no-img-element -- Browser-private blob URLs work offline.
     <img
-      className={`aeon-graphic aeon-graphic-${fit}`}
+      className={cn(
+        "block size-full",
+        fit === "fill" ? "object-cover" : "object-contain",
+      )}
       src={url}
       alt={alt}
       onLoad={onLoad}
@@ -83,7 +88,9 @@ export function StageImage({
 
   if (failed && preview)
     return (
-      <p className="aeon-image-missing">Image unavailable in this browser.</p>
+      <p className="p-3 text-[0.9rem] text-white">
+        Image unavailable in this browser.
+      </p>
     );
   if (!blob || failed) return null;
   return (

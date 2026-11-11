@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { presenterButton } from "./styles";
 import { cn } from "@/lib/utils";
 import parse, { domToReact, Element, type DOMNode } from "html-react-parser";
 import {
@@ -83,21 +84,26 @@ export function StageContent({
   return (
     <div
       className={cn(
-        "aeon-output",
-        output.kind === "standby" && "aeon-standby",
-        output.kind === "image" && "aeon-image-output",
-        alert && "aeon-alert motion-safe:animate-flash",
+        "grid size-full place-items-center overflow-hidden bg-white p-[5%] text-center font-presenter-mono text-primary [container-type:size] dark:bg-dark-2 dark:text-primary-foreground",
+        output.kind === "standby" && "bg-black dark:bg-black",
+        output.kind === "image" &&
+          "grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)] bg-black p-0 dark:bg-black",
+        alert &&
+          "bg-destructive text-destructive-foreground motion-safe:animate-flash dark:bg-destructive dark:text-destructive-foreground",
       )}
     >
       {content && (
         <Heading
           className={cn(
-            alert ? "aeon-signal" : "aeon-digits",
-            output.kind === "clock" && "aeon-digits-clock",
+            alert
+              ? "text-[length:min(10cqi,20cqb)] font-[820] leading-none"
+              : "whitespace-nowrap text-[length:min(23cqi,42cqb)] font-extrabold tabular-nums leading-none tracking-[-0.055em]",
+            output.kind === "clock" &&
+              "text-[length:min(12.5cqi,30cqb)] font-[650]",
             !alert &&
               content.length > 5 &&
               output.kind === "countdown" &&
-              "aeon-digits-hours",
+              "text-[length:min(17cqi,36cqb)]",
           )}
         >
           {content}
@@ -112,7 +118,7 @@ export function StageContent({
         />
       )}
       {output.kind === "message" && (
-        <div className="aeon-stage-message">
+        <div className="max-h-full w-full overflow-auto text-[length:min(5cqi,10cqb)] leading-[1.25] [overflow-wrap:anywhere] [&_blockquote]:border-s-[0.1em] [&_blockquote]:border-current [&_blockquote]:ps-[0.35em] [&_h1]:text-[1.8em] [&_h1]:font-extrabold [&_h2]:text-[1.45em] [&_h2]:font-[750] [&_h3]:text-[1.2em] [&_h3]:font-bold [&_ol]:mx-auto [&_ol]:w-fit [&_ol]:list-decimal [&_ol]:ps-[1em] [&_ol]:text-left [&_ul]:mx-auto [&_ul]:w-fit [&_ul]:list-disc [&_ul]:ps-[1em] [&_ul]:text-left">
           {parse(output.html, messageOptions)}
         </div>
       )}
@@ -206,7 +212,7 @@ export function StageWindow({
   }, [enterFullscreen]);
 
   return (
-    <main className="aeon-stage-window">
+    <main className="fixed inset-0 z-[100] overflow-hidden bg-white text-white [color-scheme:light] aria-[busy=true]:bg-black dark:bg-dark-2 dark:[color-scheme:dark]">
       <ReportedStageContent
         key={event.output.kind === "image" ? event.output.imageId : "standard"}
         event={event}
@@ -215,15 +221,26 @@ export function StageWindow({
         stageId={stageId}
       />
       {!fullscreen && (
-        <div className="aeon-stage-setup">
-          <button type="button" onClick={enterFullscreen}>
+        <div className="absolute right-3.5 top-3.5 text-right text-[0.85rem] [&_:focus-visible]:outline [&_:focus-visible]:outline-2 [&_:focus-visible]:outline-offset-[3px] [&_:focus-visible]:outline-primary dark:[&_:focus-visible]:outline-primary-contrast">
+          <button
+            type="button"
+            className={presenterButton()}
+            onClick={enterFullscreen}
+          >
             Fullscreen
           </button>
-          {message && <p role="status">{message}</p>}
+          {message && (
+            <p className="mt-[7px]" role="status">
+              {message}
+            </p>
+          )}
         </div>
       )}
       {storageError && (
-        <p className="aeon-stage-setup" role="alert">
+        <p
+          className="absolute right-3.5 top-3.5 text-right text-[0.85rem] [&_:focus-visible]:outline [&_:focus-visible]:outline-2 [&_:focus-visible]:outline-offset-[3px] [&_:focus-visible]:outline-primary dark:[&_:focus-visible]:outline-primary-contrast"
+          role="alert"
+        >
           Stage state is unavailable.
         </p>
       )}

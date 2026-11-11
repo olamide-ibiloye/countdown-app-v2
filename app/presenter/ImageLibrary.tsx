@@ -1,5 +1,9 @@
 "use client";
 
+import { cn } from "@/lib/utils";
+
+import { presenterButton } from "./styles";
+
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowUpRight, ImagePlus, Trash2 } from "lucide-react";
@@ -160,14 +164,16 @@ export default function ImageLibrary({
   }
 
   return (
-    <div className="aeon-image-library">
-      <div className="aeon-panel-heading">
+    <div className="grid gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="aeon-kicker">Available offline</p>
-          <h3>Image Library</h3>
+          <p className="mb-[3px] flex items-center gap-1.5 text-[0.7rem] font-bold uppercase tracking-[0.095em] text-muted-foreground">
+            Available offline
+          </p>
+          <h3 className="font-bold">Image Library</h3>
         </div>
-        <label className="aeon-image-import">
-          <span className="aeon-button">
+        <label className="relative [&:focus-within>span]:outline [&:focus-within>span]:outline-2 [&:focus-within>span]:outline-offset-[3px] [&:focus-within>span]:outline-primary dark:[&:focus-within>span]:outline-primary-contrast [&:has(input:disabled)]:opacity-[0.55] [&_input]:absolute [&_input]:inset-0 [&_input]:w-full [&_input]:cursor-pointer [&_input]:opacity-0">
+          <span className={presenterButton()}>
             <ImagePlus size={16} /> {importing ? "Importing…" : "Import Images"}
           </span>
           <input
@@ -184,24 +190,29 @@ export default function ImageLibrary({
         </label>
       </div>
       {message && (
-        <p className="aeon-error" role="alert">
+        <p
+          className="text-[0.84rem] text-red-700 dark:text-red-300"
+          role="alert"
+        >
           {message}
         </p>
       )}
       {loading ? (
-        <p className="aeon-note">Loading images…</p>
+        <p className="mt-2 text-[0.84rem] text-muted-foreground">
+          Loading images…
+        </p>
       ) : !images.length ? (
-        <div className="aeon-empty">
-          <strong>No images saved</strong>
+        <div className="grid justify-items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-5 text-center text-[0.84rem] text-muted-foreground">
+          <strong className="text-foreground">No images saved</strong>
           <span>Import PNG, JPEG, or WebP files.</span>
         </div>
       ) : (
-        <ul className="aeon-image-grid">
+        <ul className="grid max-h-80 grid-cols-[repeat(auto-fill,minmax(min(100%,120px),1fr))] gap-2.5 overflow-auto p-[3px]">
           {images.map((image) => (
-            <li key={image.id}>
+            <li key={image.id} className="relative min-w-0">
               <button
                 type="button"
-                className="aeon-image-tile"
+                className="block w-full overflow-hidden rounded-lg border border-border bg-background text-left aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-primary dark:aria-pressed:border-primary-contrast dark:aria-pressed:text-primary-contrast"
                 aria-pressed={selected?.id === image.id}
                 onClick={() => {
                   setSelectedId(image.id);
@@ -209,14 +220,19 @@ export default function ImageLibrary({
                   setMessage("");
                 }}
               >
-                <span className="aeon-image-thumbnail">
+                <span className="block aspect-video overflow-hidden bg-black">
                   <LocalGraphic blob={image.blob} alt="" />
                 </span>
-                <span className="aeon-image-name">{image.name}</span>
+                <span className="block overflow-hidden text-ellipsis whitespace-nowrap px-2 py-1.5 text-[0.8rem]">
+                  {image.name}
+                </span>
               </button>
               <button
                 type="button"
-                className="aeon-button aeon-image-delete"
+                className={cn(
+                  presenterButton({ size: "deleteImage" }),
+                  "absolute right-[5px] top-[5px]",
+                )}
                 aria-label={`Delete ${image.name}`}
                 onClick={() => requestDelete(image)}
               >
@@ -230,9 +246,11 @@ export default function ImageLibrary({
         <>
           {previewTarget &&
             createPortal(
-              <figure className="aeon-live-preview">
-                <figcaption className="aeon-kicker">Image preview</figcaption>
-                <div className="aeon-image-preview">
+              <figure className="mt-3.5 w-[min(100%,320px)]">
+                <figcaption className="mb-[3px] flex items-center gap-1.5 text-[0.7rem] font-bold uppercase tracking-[0.095em] text-muted-foreground">
+                  Image preview
+                </figcaption>
+                <div className="block aspect-video overflow-hidden rounded-lg border border-border bg-black">
                   <LocalGraphic
                     blob={selected.blob}
                     fit={fit}
@@ -242,7 +260,10 @@ export default function ImageLibrary({
                 {!live && (
                   <button
                     type="button"
-                    className="aeon-button aeon-primary aeon-preview-action"
+                    className={cn(
+                      presenterButton({ variant: "primary" }),
+                      "mt-2.5",
+                    )}
                     onClick={sendImage}
                   >
                     Send Image to Stage <ArrowUpRight size={15} />
@@ -251,12 +272,18 @@ export default function ImageLibrary({
               </figure>,
               previewTarget,
             )}
-          <div className="aeon-actions" aria-label="Image display mode">
+          <div
+            className="flex flex-wrap items-center gap-[9px]"
+            aria-label="Image display mode"
+          >
             {(["fill", "fit"] as const).map((mode) => (
               <button
                 type="button"
                 key={mode}
-                className="aeon-button aeon-fit-button"
+                className={cn(
+                  presenterButton(),
+                  "aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-primary dark:aria-pressed:border-primary-contrast dark:aria-pressed:text-primary-contrast",
+                )}
                 aria-pressed={fit === mode}
                 onClick={() => {
                   if (live)
@@ -272,14 +299,16 @@ export default function ImageLibrary({
               </button>
             ))}
             {live && (
-              <span className="aeon-chip">On stage · fit changes are live</span>
+              <span className="rounded-md bg-muted px-[9px] py-[5px] text-xs font-[650] leading-normal text-muted-foreground">
+                On stage · fit changes are live
+              </span>
             )}
           </div>
         </>
       )}
       {deleteImage && (
         <dialog
-          className="aeon-dialog"
+          className="m-auto w-[min(430px,90vw)] rounded-xl border border-border bg-card p-[22px] text-foreground backdrop:bg-black/60"
           aria-labelledby="aeon-delete-image-title"
           ref={(dialog) => {
             if (dialog && !dialog.open) dialog.showModal();
@@ -289,12 +318,19 @@ export default function ImageLibrary({
             if (!deleting) setDeleteImage(undefined);
           }}
         >
-          <h2 id="aeon-delete-image-title">Delete saved image?</h2>
-          <p>Remove “{deleteImage.name}” from this browser’s image library.</p>
-          <div className="aeon-actions">
+          <h2
+            className="text-xl font-bold leading-normal tracking-tight"
+            id="aeon-delete-image-title"
+          >
+            Delete saved image?
+          </h2>
+          <p className="mb-4 mt-2.5 text-muted-foreground">
+            Remove “{deleteImage.name}” from this browser’s image library.
+          </p>
+          <div className="flex flex-wrap items-center gap-[9px]">
             <button
               type="button"
-              className="aeon-button"
+              className={presenterButton()}
               disabled={deleting}
               onClick={() => setDeleteImage(undefined)}
             >
@@ -302,7 +338,7 @@ export default function ImageLibrary({
             </button>
             <button
               type="button"
-              className="aeon-button aeon-danger"
+              className={presenterButton({ variant: "danger" })}
               disabled={deleting}
               onClick={confirmDelete}
             >
