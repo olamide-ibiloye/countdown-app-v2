@@ -4,13 +4,13 @@ import { presenterButton } from "./styles";
 
 import { useId, useState, type FormEvent } from "react";
 import { FolderOpen, Save } from "lucide-react";
-import { isSession, type Session } from "@/lib/presenter";
+import { isQueueItem, type QueueItem } from "@/lib/presenter";
 
 const QUEUE_MEMORY_KEY = "aeonPresenterQueues:v1";
 
 interface SavedQueue {
   name: string;
-  sessions: Session[];
+  sessions: QueueItem[];
 }
 
 function readMemory(): SavedQueue[] {
@@ -25,7 +25,7 @@ function readMemory(): SavedQueue[] {
         typeof item.name === "string" &&
         Array.isArray(item.sessions) &&
         item.sessions.length > 0 &&
-        item.sessions.every(isSession),
+        item.sessions.every(isQueueItem),
     )
   )
     throw new Error("Saved queues are invalid");
@@ -36,8 +36,8 @@ export default function QueueMemory({
   queue,
   onLoad,
 }: {
-  queue: Session[];
-  onLoad: (queue: Session[]) => boolean;
+  queue: QueueItem[];
+  onLoad: (queue: QueueItem[]) => boolean;
 }) {
   const titleId = useId();
   const [mode, setMode] = useState<"save" | "load">();
@@ -186,7 +186,7 @@ export default function QueueMemory({
                     {saved.map((item) => (
                       <option key={item.name} value={item.name}>
                         {item.name} ({item.sessions.length}{" "}
-                        {item.sessions.length === 1 ? "session" : "sessions"})
+                        {item.sessions.length === 1 ? "item" : "items"})
                       </option>
                     ))}
                   </select>

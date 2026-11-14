@@ -6,6 +6,7 @@ export const ADD_TIME_MS = [30_000, 60_000, 300_000] as const;
 const MAX_DURATION_MS = 100 * 60 * 60 * 1000;
 
 export interface Session {
+  kind?: "countdown";
   id: string;
   name: string;
   durationMs: number;
@@ -17,6 +18,7 @@ export function isSession(value: unknown): value is Session {
   return (
     typeof session.id === "string" &&
     typeof session.name === "string" &&
+    (session.kind === undefined || session.kind === "countdown") &&
     isDuration(session.durationMs)
   );
 }
@@ -34,10 +36,39 @@ export type StageOutput =
   | { kind: "standby" | "countdown" }
   | { kind: "clock"; twentyFourHours: boolean }
   | { kind: "message"; html: string }
-  | { kind: "image"; imageId: string; name: string; fit: ImageFit };
+  | {
+      kind: "image";
+      imageId: string;
+      name: string;
+      fit: ImageFit;
+      queueItemId?: string;
+    };
+
+export interface ImageQueueItem {
+  kind: "image";
+  id: string;
+  name: string;
+  imageId: string;
+  fit: ImageFit;
+}
+
+export type QueueItem = Session | ImageQueueItem;
+
+export function isQueueItem(value: unknown): value is QueueItem {
+  if (isSession(value)) return true;
+  if (typeof value !== "object" || value === null) return false;
+  const item = value as Partial<ImageQueueItem>;
+  return (
+    item.kind === "image" &&
+    typeof item.id === "string" &&
+    typeof item.name === "string" &&
+    typeof item.imageId === "string" &&
+    (item.fit === "fill" || item.fit === "fit")
+  );
+}
 
 export interface PresenterEvent {
-  queue: Session[];
+  queue: QueueItem[];
   timer: ActiveTimer | null;
   output: StageOutput;
   revision: number;
@@ -95,7 +126,8 @@ export function formatPresenterClock(now: number, twentyFourHours: boolean) {
 }
 
 export type PresenterCommand =
-  | { type: "queue"; queue: Session[] }
+  | { type: "queue"; queue: QueueItem[] }
+  | { type: "enqueue"; item: QueueItem }
   | { type: "cue"; session: Session }
   | { type: "output"; output: StageOutput }
   | { type: "image-fit"; imageId: string; fit: ImageFit }
@@ -109,6 +141,8 @@ export function updateEvent(
 ): PresenterEvent {
   const { timer, output, revision } = event;
   if (command.type === "queue") return { ...event, queue: command.queue };
+  if (command.type === "enqueue")
+    return { ...event, queue: [...event.queue, command.item] };
   if (command.type === "end") {
     return { ...initialEvent, queue: event.queue, revision: revision + 1 };
   }
@@ -193,7 +227,7 @@ export function readPresenterEvent(raw: string | null): PresenterEvent {
       !Number.isSafeInteger(event.revision) ||
       event.revision < 0 ||
       !Array.isArray(event.queue) ||
-      !event.queue.every(isSession)
+      !event.queue.every(isQueueItem)
     )
       return initialEvent;
     const { timer, output } = event;
@@ -221,6 +255,8 @@ export function readPresenterEvent(raw: string | null): PresenterEvent {
         (output.kind === "image" &&
           typeof output.imageId === "string" &&
           typeof output.name === "string" &&
+          (output.queueItemId === undefined ||
+            typeof output.queueItemId === "string") &&
           (output.fit === "fill" || output.fit === "fit"))
       )
     )
