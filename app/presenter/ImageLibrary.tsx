@@ -6,7 +6,7 @@ import { presenterButton } from "./styles";
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { ArrowUpRight, ImagePlus, Trash2 } from "lucide-react";
+import { ArrowUpRight, ImagePlus, Plus, Trash2 } from "lucide-react";
 import {
   getPresenterImage,
   IMAGE_ACCEPT,
@@ -21,6 +21,7 @@ import {
   type ImageFit,
   type PresenterCommand,
   type StageOutput,
+  type ImageQueueItem,
 } from "@/lib/presenter";
 import { LocalGraphic } from "./LocalImage";
 
@@ -40,21 +41,33 @@ export default function ImageLibrary({
   output,
   dispatch,
   previewTarget,
+  initialSelection,
 }: {
   output: StageOutput;
   dispatch: (command: PresenterCommand) => boolean;
   previewTarget: HTMLDivElement | null;
+  initialSelection?: ImageQueueItem;
 }) {
   const [images, setImages] = useState<PresenterImage[]>([]);
-  const [selectedId, setSelectedId] = useState("");
-  const [draftFit, setDraftFit] = useState<ImageFit>(DEFAULT_FIT);
+  const [selectedId, setSelectedId] = useState(initialSelection?.imageId ?? "");
+  const [draftFit, setDraftFit] = useState<ImageFit>(
+    initialSelection?.fit ?? DEFAULT_FIT,
+  );
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState("");
+  const [notice, setNotice] = useState("");
   const [deleteImage, setDeleteImage] = useState<PresenterImage>();
   const [deleting, setDeleting] = useState(false);
-  const selected = images.find((image) => image.id === selectedId) ?? images[0];
-  const live = output.kind === "image" && output.imageId === selected?.id;
+  const selected = selectedId
+    ? images.find((image) => image.id === selectedId)
+    : images[0];
+  const selectedQueueItem =
+    initialSelection?.imageId === selected?.id ? initialSelection : undefined;
+  const live =
+    output.kind === "image" &&
+    output.imageId === selected?.id &&
+    (!selectedQueueItem || output.queueItemId === selectedQueueItem.id);
   const fit = live ? output.fit : draftFit;
 
   useEffect(() => {
@@ -77,6 +90,7 @@ export default function ImageLibrary({
 
   async function importImages(files: File[]) {
     if (!files.length) return;
+    setNotice("");
     setImporting(true);
     setMessage("");
     const imported: PresenterImage[] = [];
@@ -140,24 +154,36 @@ export default function ImageLibrary({
     }
   }
 
-  async function sendImage() {
+  async function applyImage(destination: "queue" | "stage") {
     if (!selected) return;
+    setMessage("");
+    setNotice("");
     try {
       if (!(await getPresenterImage(selected.id))) {
-        setMessage(
-          "This image is no longer saved. Import it again before sending it to stage.",
-        );
+        setMessage("This image is no longer saved. Import it again to use it.");
         return;
       }
-      dispatch({
-        type: "output",
-        output: {
-          kind: "image",
-          imageId: selected.id,
-          name: selected.name,
-          fit,
-        },
-      });
+      const image = {
+        kind: "image" as const,
+        imageId: selected.id,
+        name: selected.name,
+        fit,
+      };
+      if (destination === "queue") {
+        if (
+          dispatch({
+            type: "enqueue",
+            item: { ...image, id: crypto.randomUUID() },
+          })
+        ) {
+          setNotice(`Added “${selected.name}” to the queue.`);
+        }
+      } else {
+        dispatch({
+          type: "output",
+          output: { ...image, queueItemId: selectedQueueItem?.id },
+        });
+      }
     } catch {
       setMessage("The image couldn’t be read from this browser.");
     }
@@ -197,6 +223,15 @@ export default function ImageLibrary({
           {message}
         </p>
       )}
+      {!loading && selectedId && !selected && (
+        <p
+          className="text-[0.84rem] text-red-700 dark:text-red-300"
+          role="alert"
+        >
+          This queued image is no longer in the library. Import it again and
+          replace the queue item.
+        </p>
+      )}
       {loading ? (
         <p className="mt-2 text-[0.84rem] text-muted-foreground">
           Loading images…
@@ -216,6 +251,7 @@ export default function ImageLibrary({
                 aria-pressed={selected?.id === image.id}
                 onClick={() => {
                   setSelectedId(image.id);
+                  setNotice("");
                   setDraftFit(DEFAULT_FIT);
                   setMessage("");
                 }}
@@ -257,6 +293,33 @@ export default function ImageLibrary({
                     alt={selected.name}
                   />
                 </div>
+                <div
+                  className="mt-2.5 flex flex-wrap items-center gap-[9px]"
+                  aria-label="Image display mode"
+                >
+                  {(["fill", "fit"] as const).map((mode) => (
+                    <button
+                      type="button"
+                      key={mode}
+                      className={cn(
+                        presenterButton(),
+                        "aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-primary dark:aria-pressed:border-primary-contrast dark:aria-pressed:text-primary-contrast",
+                      )}
+                      aria-pressed={fit === mode}
+                      onClick={() => {
+                        if (live)
+                          dispatch({
+                            type: "image-fit",
+                            imageId: selected.id,
+                            fit: mode,
+                          });
+                        else setDraftFit(mode);
+                      }}
+                    >
+                      {mode === "fill" ? "Fill Screen" : "Fit"}
+                    </button>
+                  ))}
+                </div>
                 {!live && (
                   <button
                     type="button"
@@ -264,7 +327,7 @@ export default function ImageLibrary({
                       presenterButton({ variant: "primary" }),
                       "mt-2.5",
                     )}
-                    onClick={sendImage}
+                    onClick={() => applyImage("stage")}
                   >
                     Send Image to Stage <ArrowUpRight size={15} />
                   </button>
@@ -272,38 +335,18 @@ export default function ImageLibrary({
               </figure>,
               previewTarget,
             )}
-          <div
-            className="flex flex-wrap items-center gap-[9px]"
-            aria-label="Image display mode"
+          <button
+            type="button"
+            className={cn(presenterButton(), "justify-self-start")}
+            onClick={() => applyImage("queue")}
           >
-            {(["fill", "fit"] as const).map((mode) => (
-              <button
-                type="button"
-                key={mode}
-                className={cn(
-                  presenterButton(),
-                  "aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-primary dark:aria-pressed:border-primary-contrast dark:aria-pressed:text-primary-contrast",
-                )}
-                aria-pressed={fit === mode}
-                onClick={() => {
-                  if (live)
-                    dispatch({
-                      type: "image-fit",
-                      imageId: selected.id,
-                      fit: mode,
-                    });
-                  else setDraftFit(mode);
-                }}
-              >
-                {mode === "fill" ? "Fill Screen" : "Fit"}
-              </button>
-            ))}
-            {live && (
-              <span className="rounded-md bg-muted px-[9px] py-[5px] text-xs font-[650] leading-normal text-muted-foreground">
-                On stage · fit changes are live
-              </span>
-            )}
-          </div>
+            <Plus size={15} /> Add to Queue
+          </button>
+          {notice && (
+            <p className="text-[0.84rem] text-muted-foreground" role="status">
+              {notice}
+            </p>
+          )}
         </>
       )}
       {deleteImage && (

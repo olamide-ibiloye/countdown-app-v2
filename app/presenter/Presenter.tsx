@@ -13,6 +13,8 @@ import {
   type PresenterCommand,
   type PresenterEvent,
   type Session,
+  type QueueItem,
+  type ImageQueueItem,
   type StageOutput,
 } from "@/lib/presenter";
 import {
@@ -37,6 +39,8 @@ import { useTheme } from "next-themes";
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import ImageLibrary from "./ImageLibrary";
+import { StageImage } from "./LocalImage";
+import { getPresenterImage } from "@/lib/presenter-images";
 import QueueMemory from "./QueueMemory";
 import { StageContent, StageWindow } from "./Stage";
 import { useOffline } from "./useOffline";
@@ -96,6 +100,10 @@ function Console({
   const { details, enable, supportsPlacement } = useDisplayDetails(true);
   const stage = useStageConnection(details, now);
   const [editor, setEditor] = useState<Editor>("countdown");
+  const [queuedImagePreview, setQueuedImagePreview] = useState<{
+    item: ImageQueueItem;
+    request: number;
+  }>();
   const [imagePreviewTarget, setImagePreviewTarget] =
     useState<HTMLDivElement | null>(null);
   const [name, setName] = useState("");
@@ -115,6 +123,7 @@ function Console({
         ? { kind: "message", html: message }
         : undefined;
   const [formError, setFormError] = useState("");
+  const [queueError, setQueueError] = useState("");
   const [singleScreen, setSingleScreen] = useState(false);
   const [confirm, setConfirm] = useState<
     { kind: "cue"; session: Session } | { kind: "end" }
@@ -143,7 +152,12 @@ function Console({
   const finished = Boolean(
     timer?.phase === "running" && remaining === 0 && now,
   );
-  const nextIndex = queue.findIndex((session) => session.id === timer?.id) + 1;
+  const currentQueueItemId =
+    output.kind === "image" && output.queueItemId
+      ? output.queueItemId
+      : timer?.id;
+  const nextIndex =
+    queue.findIndex((item) => item.id === currentQueueItemId) + 1;
   const applied = stage.connected && stage.report?.revision === event.revision;
   const live =
     !stage.disconnecting &&
@@ -189,9 +203,35 @@ function Console({
     };
   }
 
-  function cue(session: Session) {
-    if (running) setConfirm({ kind: "cue", session });
-    else dispatch({ type: "cue", session });
+  async function cue(item: QueueItem) {
+    setQueueError("");
+    if (item.kind !== "image") {
+      if (running) setConfirm({ kind: "cue", session: item });
+      else dispatch({ type: "cue", session: item });
+      return;
+    }
+    try {
+      if (!(await getPresenterImage(item.imageId))) {
+        setQueueError(
+          "This image is no longer in the library. Remove this queue item and add the image again.",
+        );
+        return;
+      }
+      dispatch({
+        type: "output",
+        output: {
+          kind: "image",
+          imageId: item.imageId,
+          name: item.name,
+          fit: item.fit,
+          queueItemId: item.id,
+        },
+      });
+    } catch {
+      setQueueError(
+        "The image couldn’t be opened from this browser’s library.",
+      );
+    }
   }
 
   function saveSession(e: FormEvent) {
@@ -662,6 +702,7 @@ function Console({
                   className={presenterButton({ variant: "tab" })}
                   aria-pressed={editor === kind}
                   onClick={() => {
+                    setQueuedImagePreview(undefined);
                     setEditor(kind);
                     setFormError("");
                   }}
@@ -801,9 +842,11 @@ function Console({
             )}
             {editor === "image" && (
               <ImageLibrary
+                key={queuedImagePreview?.request ?? "library"}
                 output={output}
                 dispatch={dispatch}
                 previewTarget={imagePreviewTarget}
+                initialSelection={queuedImagePreview?.item}
               />
             )}
           </section>
@@ -819,7 +862,7 @@ function Console({
                 </h2>
               </div>
               <span className="rounded-md bg-muted px-[9px] py-[5px] text-xs font-[650] leading-normal text-muted-foreground">
-                {queue.length} {queue.length === 1 ? "session" : "sessions"}
+                {queue.length} {queue.length === 1 ? "item" : "items"}
               </span>
             </div>
             <QueueMemory
@@ -827,6 +870,7 @@ function Console({
               onLoad={(loadedQueue) => {
                 if (!dispatch({ type: "queue", queue: loadedQueue }))
                   return false;
+                setQueueError("");
                 if (editing) {
                   setEditing(undefined);
                   setName("");
@@ -835,16 +879,26 @@ function Console({
                 return true;
               }}
             />
+            {queueError && (
+              <p
+                className="mb-3 text-[0.84rem] text-red-700 dark:text-red-300"
+                role="alert"
+              >
+                {queueError}
+              </p>
+            )}
             {!queue.length ? (
               <div className="grid justify-items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-5 text-center text-[0.84rem] text-muted-foreground">
                 <Timer size={21} />
                 <strong className="text-foreground">Your queue is empty</strong>
-                <span>Add a countdown to plan the order of your sessions.</span>
+                <span>
+                  Add countdowns or library images to plan your event.
+                </span>
               </div>
             ) : (
               <ol className="grid gap-2">
                 {queue.map((session, index) => {
-                  const current = session.id === timer?.id;
+                  const current = session.id === currentQueueItemId;
                   const upNext = !current && index === nextIndex;
                   return (
                     <li
@@ -861,6 +915,16 @@ function Console({
                       <span className="font-presenter-mono text-[0.8rem] tabular-nums text-primary dark:text-primary-contrast">
                         {String(index + 1).padStart(2, "0")}
                       </span>
+                      {session.kind === "image" && (
+                        <div className="h-12 w-20 shrink-0 overflow-hidden rounded border border-border bg-black">
+                          <StageImage
+                            imageId={session.imageId}
+                            name={session.name}
+                            fit={session.fit}
+                            preview
+                          />
+                        </div>
+                      )}
                       <div className="grid min-w-0 flex-1 text-[0.87rem] [overflow-wrap:anywhere]">
                         <div className="flex flex-wrap items-center gap-[7px]">
                           <strong>{session.name}</strong>
@@ -877,7 +941,9 @@ function Console({
                           )}
                         </div>
                         <span className="font-presenter-mono tabular-nums text-muted-foreground">
-                          {clockFormat(session.durationMs)}
+                          {session.kind === "image"
+                            ? `Image · ${session.fit === "fit" ? "Fit" : "Fill Screen"}`
+                            : clockFormat(session.durationMs)}
                         </span>
                       </div>
                       <div className="flex flex-wrap justify-end gap-1 max-[500px]:basis-full max-[500px]:justify-start">
@@ -910,6 +976,7 @@ function Console({
                                 (item) => item.id !== session.id,
                               ),
                             });
+                            setQueueError("");
                             if (editing === session.id) {
                               setEditing(undefined);
                               setName("");
@@ -918,13 +985,31 @@ function Console({
                         >
                           <Trash2 size={15} />
                         </button>
-                        <button
-                          type="button"
-                          className={presenterButton({ size: "queue" })}
-                          onClick={() => editSession(session)}
-                        >
-                          Edit
-                        </button>
+                        {session.kind !== "image" && (
+                          <button
+                            type="button"
+                            className={presenterButton({ size: "queue" })}
+                            onClick={() => editSession(session)}
+                          >
+                            Edit
+                          </button>
+                        )}
+                        {session.kind === "image" && (
+                          <button
+                            type="button"
+                            className={presenterButton({ size: "queue" })}
+                            aria-label={`Preview ${session.name}`}
+                            onClick={() => {
+                              setQueuedImagePreview((previous) => ({
+                                item: session,
+                                request: (previous?.request ?? 0) + 1,
+                              }));
+                              setEditor("image");
+                            }}
+                          >
+                            Preview
+                          </button>
+                        )}
                         <button
                           type="button"
                           className={presenterButton({ size: "queue" })}
