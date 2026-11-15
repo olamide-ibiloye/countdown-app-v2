@@ -27,19 +27,19 @@ import {
   Monitor,
   MonitorOff,
   MonitorUp,
-  Moon,
   Plus,
   Radio,
-  Sun,
   Timer,
   Trash2,
   Type,
 } from "lucide-react";
-import { useTheme } from "next-themes";
-import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import ImageLibrary from "./ImageLibrary";
 import { StageImage } from "./LocalImage";
+import { CrewSharing } from "./CrewSharing";
+import Link from "next/link";
+import { AppHeader, AppMenu } from "@/components/AppHeader";
+import { useCrewSharing } from "./useCrewSharing";
 import { getPresenterImage } from "@/lib/presenter-images";
 import QueueMemory from "./QueueMemory";
 import { StageContent, StageWindow } from "./Stage";
@@ -92,11 +92,11 @@ function Console({
   storageError: boolean;
 }) {
   const { timer, output, queue } = event;
-  const { resolvedTheme, setTheme } = useTheme();
   const now = useStageClock(
     timer?.phase === "running" ? timer.deadline : undefined,
   );
   const offline = useOffline();
+  const crewSharing = useCrewSharing(event);
   const { details, enable, supportsPlacement } = useDisplayDetails(true);
   const stage = useStageConnection(details, now);
   const [editor, setEditor] = useState<Editor>("countdown");
@@ -303,62 +303,38 @@ function Console({
 
   return (
     <main className="min-h-dvh bg-background text-foreground [color-scheme:light] dark:[color-scheme:dark] [&_:focus-visible]:outline [&_:focus-visible]:outline-2 [&_:focus-visible]:outline-offset-[3px] [&_:focus-visible]:outline-primary dark:[&_:focus-visible]:outline-primary-contrast">
-      <header className="flex min-h-[68px] flex-wrap items-center justify-between gap-3.5 border-b border-border bg-background px-[clamp(16px,4vw,56px)] py-3">
-        <div className="flex flex-wrap items-center gap-[11px]">
-          <span
-            className="grid size-[38px] place-items-center bg-[url('../public/logo512.png')] bg-contain bg-center bg-no-repeat"
-            aria-hidden="true"
-          />
-          <div>
-            <strong>
-              Aeon
-              <span className="text-primary dark:text-primary-contrast">
-                Timer
-              </span>
-            </strong>
-            <span className="ml-[11px] text-[0.8rem] text-muted-foreground">
-              v3
-            </span>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-[9px]">
-          <span
-            className={cn(
-              "rounded-md bg-muted px-[9px] py-[5px] text-xs font-[650] leading-normal text-muted-foreground",
-              offline === "ready" &&
-                "bg-[hsl(142_65%_45%/0.14)] text-green-800 dark:text-green-300",
-            )}
-            role="status"
-          >
-            {offline === "ready"
-              ? "Offline ready"
-              : offline === "preparing"
-                ? "Preparing offline access"
-                : "Offline access unavailable"}
-          </span>
-          <button
-            type="button"
-            className={presenterButton({ variant: "quiet" })}
-            aria-label={
-              resolvedTheme === "dark"
-                ? "Switch to light mode"
-                : "Switch to dark mode"
-            }
-            onClick={() =>
-              setTheme(resolvedTheme === "dark" ? "light" : "dark")
-            }
-          >
-            {resolvedTheme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
-          </button>
-          <Link
-            className={presenterButton({ variant: "quiet" })}
-            href="/classic"
-            prefetch={false}
-          >
-            Switch to Classic Timer (v2)
-          </Link>
-        </div>
-      </header>
+      <AppHeader>
+        <Link
+          className={presenterButton({ variant: "quiet" })}
+          href="/classic"
+          prefetch={false}
+        >
+          <span className="max-sm:sr-only">Switch to </span>Classic Timer (v2)
+        </Link>
+        <CrewSharing
+          sharing={crewSharing}
+          trigger={(onOpen, label) => (
+            <AppMenu
+              sharing={{ label, onOpen }}
+              offline={
+                <span
+                  className={
+                    offline === "ready"
+                      ? "text-green-800 dark:text-green-300"
+                      : "text-muted-foreground"
+                  }
+                >
+                  {offline === "ready"
+                    ? "Offline ready"
+                    : offline === "preparing"
+                      ? "Preparing offline access"
+                      : "Offline access unavailable"}
+                </span>
+              }
+            />
+          )}
+        />
+      </AppHeader>
 
       {storageError && (
         <p

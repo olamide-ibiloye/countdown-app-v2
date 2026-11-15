@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect } from "react";
+import { usePathname } from "next/navigation";
 
 export default function ScreenWakeLock() {
+  const pathname = usePathname();
   useEffect(() => {
+    if (pathname === "/join") return;
     const wakeLock = navigator.wakeLock;
     if (!wakeLock) return;
 
@@ -62,7 +65,7 @@ export default function ScreenWakeLock() {
       window.removeEventListener("pagehide", onPageHide);
       window.removeEventListener("pageshow", onPageShow);
     };
-  }, []);
+  }, [pathname]);
 
   return null;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { stopCrewLocally } from "@/lib/crew";
 import {
   initialEvent,
   PRESENTER_KEY,
@@ -57,6 +58,7 @@ export function usePresenter() {
       const next = updateEvent(current, command, Date.now());
       if (next === current) return true;
       localStorage.setItem(PRESENTER_KEY, JSON.stringify(next));
+      if (command.type === "end") stopCrewLocally();
       window.dispatchEvent(new Event(localChange));
       setWriteFailed(false);
       return true;

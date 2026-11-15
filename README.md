@@ -40,7 +40,7 @@ Use **Image → Import Images** to keep PNG, JPEG, and WebP graphics available o
 
 ## Usage
 
-1. Visit [https://aeon-timer-v2.netlify.app/](https://aeon-timer-v2.netlify.app/) in your web browser.
+1. Visit [Aeon Timer](https://aeon-timer-v2.vercel.app/) in your web browser.
 2. Set the countdown timer by specifying the target date and time of your event.
 3. Optionally, add a personalized message to accompany the countdown.
 4. Enable the auto-countdown feature by specifying the durations for different aspects of your event, if applicable.
@@ -50,7 +50,7 @@ Use **Image → Import Images** to keep PNG, JPEG, and WebP graphics available o
 
 - **Next.js 16**: A React framework for building server-side rendered applications.
 - **Tailwind CSS**: A utility-first CSS framework for quickly styling web applications.
-- **Netlify**: Hosting platform used to deploy the Aeon Timer application.
+- **Vercel**: Hosting platform used to deploy the Aeon Timer application.
 - **TypeScript**: A typed superset of JavaScript that compiles to plain JavaScript.
 
 ## Local Development
@@ -64,3 +64,9 @@ Contributions are welcome! If you have any suggestions, feature requests, or bug
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+
+## Read-only crew view
+
+Use **Share with crew** in Presenter to create a temporary event code, QR code and link. Crew open `/join` on their phones to see the live countdown, clock, message or image name, alongside current/up-next items. Updates normally arrive within 2–5 seconds while connected; connection warnings appear when data is stale. The local timer and stage keep working offline.
+
+Sharing requires a server-side Upstash Redis integration on Vercel. See [Crew sharing setup and behaviour](docs/crew-sharing.md) and [.env.example](.env.example). Codes survive dashboard refreshes, expire after 24 hours, and are cancelled by **Stop Sharing** or **End Event**. Offline cancellations are retried when the dashboard reconnects.
