@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { presenterButton } from "./styles";
 import { cn } from "@/lib/utils";
 import parse, { domToReact, Element, type DOMNode } from "html-react-parser";
@@ -51,6 +51,62 @@ const messageOptions = {
   },
 };
 
+function FittedStageText({
+  children,
+  preview,
+  alert,
+  clock,
+}: {
+  children: string;
+  preview: boolean;
+  alert: boolean;
+  clock: boolean;
+}) {
+  const container = useRef<HTMLDivElement>(null);
+  const text = useRef<HTMLHeadingElement>(null);
+
+  useLayoutEffect(() => {
+    const frame = container.current;
+    const label = text.current;
+    if (!frame || !label) return;
+    let disposed = false;
+    function fit() {
+      if (disposed || !frame || !label) return;
+      // Warning animations enlarge the stage by 5%; reserve that space too.
+      const scale = Math.min(
+        frame.clientWidth / Math.max(label.offsetWidth, 1),
+        frame.clientHeight / Math.max(label.offsetHeight, 1),
+      ) / (alert ? 1.05 : 1);
+      label.style.transform = `translate(-50%, -50%) scale(${scale})`;
+    }
+    const observer = new ResizeObserver(fit);
+    observer.observe(frame);
+    observer.observe(label);
+    fit();
+    void document.fonts.ready.then(fit);
+    return () => {
+      disposed = true;
+      observer.disconnect();
+    };
+  }, [children, alert, clock]);
+
+  const Heading = preview ? "div" : "h1";
+  return (
+    <div ref={container} className="relative size-full min-h-0 min-w-0">
+      <Heading
+        ref={text}
+        className={cn(
+          "absolute left-1/2 top-1/2 m-0 w-max origin-center whitespace-nowrap text-[100px] font-extrabold tabular-nums leading-none tracking-[-0.055em]",
+          alert && "font-[820] tracking-normal",
+          clock && "font-[650]",
+        )}
+      >
+        {children}
+      </Heading>
+    </div>
+  );
+}
+
 export function StageContent({
   event,
   now,
@@ -79,12 +135,12 @@ export function StageContent({
   } else if (output.kind === "clock" && now) {
     content = formatPresenterClock(now, output.twentyFourHours);
   }
-  const Heading = preview ? "div" : "h1";
 
   return (
     <div
       className={cn(
         "grid size-full place-items-center overflow-hidden bg-white p-[5%] text-center font-presenter-mono text-primary [container-type:size] dark:bg-dark-2 dark:text-primary-foreground",
+        content && "grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)] p-[2%]",
         output.kind === "standby" && "bg-black dark:bg-black",
         output.kind === "image" &&
           "grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)] bg-black p-0 dark:bg-black",
@@ -93,21 +149,9 @@ export function StageContent({
       )}
     >
       {content && (
-        <Heading
-          className={cn(
-            alert
-              ? "text-[length:min(10cqi,20cqb)] font-[820] leading-none"
-              : "whitespace-nowrap text-[length:min(23cqi,42cqb)] font-extrabold tabular-nums leading-none tracking-[-0.055em]",
-            output.kind === "clock" &&
-              "text-[length:min(12.5cqi,30cqb)] font-[650]",
-            !alert &&
-              content.length > 5 &&
-              output.kind === "countdown" &&
-              "text-[length:min(17cqi,36cqb)]",
-          )}
-        >
+        <FittedStageText preview={preview} alert={alert} clock={output.kind === "clock"}>
           {content}
-        </Heading>
+        </FittedStageText>
       )}
       {output.kind === "image" && (
         <StageImage
