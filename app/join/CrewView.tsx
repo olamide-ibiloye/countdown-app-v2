@@ -219,7 +219,7 @@ function EventView({ requested }: { requested: string }) {
                 >
                   {stale
                     ? `Connection lost — time may have changed. Last updated ${Math.floor(age / 1000)} seconds ago.`
-                    : "Connected · Updates every 3 seconds"}
+                    : `Connected · Updates every ${CREW_POLL_MS / 1000} seconds`}
                 </div>
                 <section
                   aria-label="Live output"

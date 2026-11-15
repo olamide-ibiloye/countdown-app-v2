@@ -5,8 +5,8 @@ import {
   type QueueItem,
 } from "./presenter";
 
-export const CREW_POLL_MS = 3_000;
-export const CREW_STALE_MS = 12_000;
+export const CREW_POLL_MS = 10_000;
+export const CREW_STALE_MS = 35_000;
 export const CREW_SESSION_KEY = "aeonCrewShare:v1";
 export const CREW_CHANGE = "aeon-crew-change";
 export const CREW_STOP_KEY = "aeonCrewStop:v1";
