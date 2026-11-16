@@ -1,5 +1,11 @@
 import { crewCode, crewSnapshotSchema, type CrewSnapshot } from "@/lib/crew";
-import { mutateCrew, rateLimit, redis, secretHash } from "@/lib/crew-server";
+import {
+  crewViewerLease,
+  mutateCrew,
+  rateLimit,
+  redis,
+  secretHash,
+} from "@/lib/crew-server";
 import { randomBytes, randomInt } from "node:crypto";
 import { z } from "zod";
 
@@ -22,13 +28,14 @@ interface StoredEvent {
   sequence: number;
   snapshot: CrewSnapshot;
 }
-function reply(body: unknown, status = 200) {
+function reply(body: unknown, status = 200, retryAfter?: number) {
   return Response.json(body, {
     status,
     headers: {
       "Cache-Control": "no-store, max-age=0",
       "Referrer-Policy": "no-referrer",
       "X-Content-Type-Options": "nosniff",
+      ...(retryAfter ? { "Retry-After": String(retryAfter) } : {}),
     },
   });
 }
@@ -42,6 +49,7 @@ function failure() {
           : "Crew sharing isn’t configured for this installation yet. Your local timer is unaffected.",
     },
     503,
+    60,
   );
 }
 function sameOrigin(request: Request) {
@@ -80,23 +88,35 @@ export async function GET(request: Request) {
   );
   if (!parsed.success)
     return reply({ error: "Enter an eight-character event code." }, 400);
+  const viewerToken = request.headers.get("x-crew-viewer") || "";
+  if (!/^[a-f0-9]{64}$/.test(viewerToken))
+    return reply({ error: "Join the event before requesting updates." }, 401);
   try {
-    if (!(await rateLimit(request, "view", 200, 60)))
-      return reply({ error: "Too many requests. Try again shortly." }, 429);
-    const raw = await redis<string | null>("GET", `aeon:crew:${parsed.data}`);
-    if (!raw)
+    if (!(await rateLimit(request, "view", 120, 60)))
+      return reply({ error: "Too many requests. Try again shortly." }, 429, 60);
+    const result = JSON.parse(
+      await redis<string>(
+        "EVAL",
+        crewViewerLease,
+        1,
+        `aeon:crew:${parsed.data}`,
+        "read",
+        secretHash(viewerToken),
+        Date.now(),
+      ),
+    );
+    if (result.status === 404)
       return reply(
         { error: "This event code has expired or sharing has ended." },
         404,
       );
-    const event: StoredEvent = JSON.parse(raw);
-    if (event.expiresAt <= Date.now())
-      return reply({ error: "This event code has expired." }, 404);
+    if (result.status === 410)
+      return reply({ error: "Your viewer slot expired. Reconnecting…" }, 410);
     return reply({
-      snapshot: event.snapshot,
-      updatedAt: event.updatedAt,
-      expiresAt: event.expiresAt,
-      serverNow: Date.now(),
+      snapshot: result.snapshot,
+      updatedAt: result.updatedAt,
+      expiresAt: result.expiresAt,
+      serverNow: result.serverNow,
     });
   } catch {
     return failure();
@@ -108,7 +128,13 @@ export async function POST(request: Request) {
     return reply({ error: "Invalid request origin." }, 403);
   let snapshot: CrewSnapshot;
   try {
-    snapshot = crewSnapshotSchema.parse(await body(request));
+    const payload = await body(request);
+    if (payload?.action === "join") {
+      const parsed = crewCode.safeParse(payload.code);
+      if (!parsed.success) return reply({ error: "Invalid event code." }, 400);
+      return joinViewer(request, parsed.data);
+    }
+    snapshot = crewSnapshotSchema.parse(payload);
   } catch {
     return reply({ error: "Invalid event snapshot." }, 400);
   }
@@ -117,6 +143,7 @@ export async function POST(request: Request) {
       return reply(
         { error: "Too many sharing sessions. Try again later." },
         429,
+        3600,
       );
     for (let attempt = 0; attempt < 4; attempt++) {
       const code = Array.from(
@@ -156,13 +183,17 @@ async function mutate(request: Request, remove: boolean) {
     return reply({ error: "Invalid request origin." }, 403);
   let data;
   try {
-    data = (remove ? credentials : publish).parse(await body(request));
+    const payload = await body(request);
+    if (remove && payload?.action === "leave") {
+      return leaveViewer(request, credentials.parse(payload));
+    }
+    data = (remove ? credentials : publish).parse(payload);
   } catch {
     return reply({ error: "Invalid sharing request." }, 400);
   }
   try {
     if (!(await rateLimit(request, "write", 180, 60)))
-      return reply({ error: "Too many requests. Try again shortly." }, 429);
+      return reply({ error: "Too many requests. Try again shortly." }, 429, 60);
     const update = remove ? null : publish.parse(data);
     const result = await redis<number>(
       "EVAL",
@@ -192,3 +223,63 @@ async function mutate(request: Request, remove: boolean) {
 }
 export const PUT = (request: Request) => mutate(request, false);
 export const DELETE = (request: Request) => mutate(request, true);
+
+async function joinViewer(request: Request, code: string) {
+  try {
+    if (!(await rateLimit(request, "join", 30, 60)))
+      return reply(
+        { error: "Too many join attempts. Try again shortly." },
+        429,
+        60,
+      );
+    const token = randomBytes(32).toString("hex");
+    const result = JSON.parse(
+      await redis<string>(
+        "EVAL",
+        crewViewerLease,
+        1,
+        `aeon:crew:${code}`,
+        "join",
+        secretHash(token),
+        Date.now(),
+      ),
+    );
+    if (result.status === 404)
+      return reply(
+        { error: "This event code has expired or sharing has ended." },
+        404,
+      );
+    if (result.status === 409)
+      return reply(
+        {
+          error:
+            "This event already has 3 viewers. Try again after someone leaves.",
+        },
+        409,
+      );
+    return reply({ token });
+  } catch {
+    return failure();
+  }
+}
+async function leaveViewer(
+  request: Request,
+  data: z.infer<typeof credentials>,
+) {
+  try {
+    if (!(await rateLimit(request, "join", 30, 60)))
+      return reply({ error: "Too many requests. Try again shortly." }, 429, 60);
+    await redis(
+      "EVAL",
+      crewViewerLease,
+      1,
+      `aeon:crew:${data.code}`,
+      "leave",
+      secretHash(data.token),
+      Date.now(),
+    );
+    return reply({ ok: true });
+  } catch {
+    return failure();
+  }
+}

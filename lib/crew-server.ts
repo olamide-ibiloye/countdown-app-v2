@@ -67,3 +67,38 @@ export const mutateCrew = `
   redis.call('SET', KEYS[1], cjson.encode(event), 'KEEPTTL')
   return 1
 `;
+
+// All admissions and renewals serialize against the event key. A simultaneous
+// fourth join cannot pass the cap; publishing preserves this lease map.
+export const crewViewerLease = `
+  local raw = redis.call('GET', KEYS[1])
+  if not raw then return cjson.encode({status=404}) end
+  local event = cjson.decode(raw)
+  local now = tonumber(ARGV[3])
+  if event.expiresAt <= now then return cjson.encode({status=404}) end
+  local viewers = event.viewers or {}
+  local token = ARGV[2]
+  if ARGV[1] == 'leave' then
+    if viewers[token] then
+      viewers[token] = nil
+      event.viewers = viewers
+      redis.call('SET', KEYS[1], cjson.encode(event), 'KEEPTTL')
+    end
+    return cjson.encode({status=200})
+  end
+  local count = 0
+  for id, expires in pairs(viewers) do
+    if expires <= now then viewers[id] = nil else count = count + 1 end
+  end
+  if ARGV[1] == 'join' then
+    if count >= 3 then return cjson.encode({status=409}) end
+  elseif not viewers[token] then
+    return cjson.encode({status=410})
+  end
+  viewers[token] = now + 60000
+  event.viewers = viewers
+  redis.call('SET', KEYS[1], cjson.encode(event), 'KEEPTTL')
+  if ARGV[1] == 'join' then return cjson.encode({status=200}) end
+  return cjson.encode({status=200, snapshot=event.snapshot,
+    updatedAt=event.updatedAt, expiresAt=event.expiresAt, serverNow=now})
+`;

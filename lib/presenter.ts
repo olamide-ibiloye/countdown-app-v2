@@ -71,6 +71,7 @@ export interface PresenterEvent {
   queue: QueueItem[];
   timer: ActiveTimer | null;
   output: StageOutput;
+  blackoutOutput?: StageOutput;
   revision: number;
 }
 
@@ -131,8 +132,42 @@ export type PresenterCommand =
   | { type: "cue"; session: Session }
   | { type: "output"; output: StageOutput }
   | { type: "image-fit"; imageId: string; fit: ImageFit }
-  | { type: "play" | "pause" | "reset" | "end" }
+  | { type: "play" | "pause" | "reset" | "end" | "blackout" | "restore" }
   | { type: "extend"; durationMs: (typeof ADD_TIME_MS)[number] };
+
+function showOutput(
+  event: PresenterEvent,
+  output: StageOutput,
+): PresenterEvent {
+  const next = {
+    ...event,
+    timer: output.kind === "countdown" ? event.timer : null,
+    output,
+    revision: event.revision + 1,
+  };
+  delete next.blackoutOutput;
+  return next;
+}
+
+function isStageOutput(
+  output: unknown,
+  timer: ActiveTimer | null,
+): output is StageOutput {
+  if (!output || typeof output !== "object") return false;
+  const value = output as StageOutput;
+  return (
+    value.kind === "standby" ||
+    (value.kind === "countdown" && Boolean(timer)) ||
+    (value.kind === "clock" && typeof value.twentyFourHours === "boolean") ||
+    (value.kind === "message" && typeof value.html === "string") ||
+    (value.kind === "image" &&
+      typeof value.imageId === "string" &&
+      typeof value.name === "string" &&
+      (value.queueItemId === undefined ||
+        typeof value.queueItemId === "string") &&
+      (value.fit === "fill" || value.fit === "fit"))
+  );
+}
 
 export function updateEvent(
   event: PresenterEvent,
@@ -146,17 +181,33 @@ export function updateEvent(
   if (command.type === "end") {
     return { ...initialEvent, queue: event.queue, revision: revision + 1 };
   }
-  if (command.type === "cue") {
+  if (command.type === "blackout") {
+    if (output.kind === "standby") return event;
     return {
       ...event,
-      timer: { ...command.session, phase: "ready" },
-      output: { kind: "countdown" },
+      output: { kind: "standby" },
+      blackoutOutput: output,
       revision: revision + 1,
     };
   }
+  if (command.type === "restore") {
+    if (
+      output.kind !== "standby" ||
+      !event.blackoutOutput ||
+      !isStageOutput(event.blackoutOutput, timer)
+    )
+      return event;
+    return showOutput(event, event.blackoutOutput);
+  }
+  if (command.type === "cue") {
+    return showOutput(
+      { ...event, timer: { ...command.session, phase: "ready" } },
+      { kind: "countdown" },
+    );
+  }
   if (command.type === "output") {
     if (command.output.kind === "countdown" && !timer) return event;
-    return { ...event, output: command.output, revision: revision + 1 };
+    return showOutput(event, command.output);
   }
   if (command.type === "image-fit") {
     if (
@@ -244,23 +295,19 @@ export function readPresenterEvent(raw: string | null): PresenterEvent {
         ))
     )
       return initialEvent;
+    if (!isStageOutput(output, timer)) return initialEvent;
     if (
-      !output ||
-      !(
-        output.kind === "standby" ||
-        (output.kind === "countdown" && timer) ||
-        (output.kind === "clock" &&
-          typeof output.twentyFourHours === "boolean") ||
-        (output.kind === "message" && typeof output.html === "string") ||
-        (output.kind === "image" &&
-          typeof output.imageId === "string" &&
-          typeof output.name === "string" &&
-          (output.queueItemId === undefined ||
-            typeof output.queueItemId === "string") &&
-          (output.fit === "fill" || output.fit === "fit"))
-      )
+      event.blackoutOutput !== undefined &&
+      (output.kind !== "standby" ||
+        !isStageOutput(event.blackoutOutput, timer) ||
+        event.blackoutOutput.kind === "standby")
     )
-      return initialEvent;
+      delete event.blackoutOutput;
+    if (
+      output.kind !== "countdown" &&
+      !(output.kind === "standby" && event.blackoutOutput?.kind === "countdown")
+    )
+      event.timer = null;
     return event;
   } catch {
     return initialEvent;

@@ -19,6 +19,7 @@ test(
       ["localhost", "127.0.0.1"].includes(new URL(base).hostname),
       "Use a local test server",
     );
+    const viewers = new Map();
     async function request(
       method,
       data,
@@ -27,7 +28,19 @@ test(
     ) {
       const response = await fetch(`${base}/api/crew${query}`, {
         method,
-        headers: { "Content-Type": "application/json", Origin: origin },
+        headers: {
+          "Content-Type": "application/json",
+          Origin: origin,
+          ...(viewers.get(
+            new URL(`${base}/api/crew${query}`).searchParams.get("code"),
+          )
+            ? {
+                "X-Crew-Viewer": viewers.get(
+                  new URL(`${base}/api/crew${query}`).searchParams.get("code"),
+                ),
+              }
+            : {}),
+        },
         body: data === undefined ? undefined : JSON.stringify(data),
       });
       return {
@@ -62,6 +75,14 @@ test(
     assert.match(token, /^[a-f0-9]{64}$/);
     assert(Math.abs(expiresAt - Date.now() - 86_400_000) < 5000);
     try {
+      assert.equal(
+        (await fetch(`${base}/api/crew?code=${code}`)).status,
+        401,
+        "Snapshots require an admitted viewer",
+      );
+      const admission = await request("POST", { action: "join", code });
+      assert.equal(admission.status, 200);
+      viewers.set(code, admission.body.token);
       let view = await request("GET", undefined, `?code=${code}`);
       assert.equal(view.status, 200);
       assert.deepEqual(view.body.snapshot, snapshot);
@@ -174,6 +195,95 @@ test(
       );
     } finally {
       await request("DELETE", { code, token });
+    }
+  },
+);
+
+test(
+  "event admission is atomic, limited to three viewer sessions and reusable after release",
+  { skip: !base },
+  async () => {
+    assert(["localhost", "127.0.0.1"].includes(new URL(base).hostname));
+    const request = async (method, data, token, code) => {
+      const response = await fetch(
+        `${base}/api/crew${method === "GET" ? `?code=${code}` : ""}`,
+        {
+          method,
+          headers: {
+            "Content-Type": "application/json",
+            Origin: new URL(base).origin,
+            ...(token ? { "X-Crew-Viewer": token } : {}),
+          },
+          body: data ? JSON.stringify(data) : undefined,
+        },
+      );
+      return { status: response.status, body: await response.json() };
+    };
+    const event = (await request("POST", snapshot)).body;
+    try {
+      const joins = await Promise.all(
+        Array.from({ length: 8 }, () =>
+          request("POST", { action: "join", code: event.code }),
+        ),
+      );
+      const admitted = joins.filter((result) => result.status === 200);
+      assert.equal(
+        admitted.length,
+        3,
+        "Concurrent requests must never admit a fourth viewer",
+      );
+      assert.equal(joins.filter((result) => result.status === 409).length, 5);
+      for (const viewer of admitted) {
+        const view = await request(
+          "GET",
+          undefined,
+          viewer.body.token,
+          event.code,
+        );
+        assert.equal(view.status, 200);
+        assert.deepEqual(view.body.snapshot, snapshot);
+        assert.equal(view.body.viewers, undefined);
+      }
+      assert.equal(
+        (await request("GET", undefined, "b".repeat(64), event.code)).status,
+        410,
+      );
+      const released = admitted[0].body.token;
+      assert.equal(
+        (
+          await request("DELETE", {
+            action: "leave",
+            code: event.code,
+            token: released,
+          })
+        ).status,
+        200,
+      );
+      assert.equal(
+        (await request("GET", undefined, released, event.code)).status,
+        410,
+      );
+      assert.equal(
+        (await request("POST", { action: "join", code: event.code })).status,
+        200,
+      );
+      assert.equal(
+        (await request("POST", { action: "join", code: event.code })).status,
+        409,
+      );
+      await request("PUT", {
+        code: event.code,
+        token: event.token,
+        sequence: 1,
+        snapshot,
+      });
+      assert.equal(
+        (await request("POST", { action: "join", code: event.code })).status,
+        409,
+        "Publishing must preserve viewer reservations",
+      );
+    } finally {
+      await request("DELETE", { code: event.code, token: event.token });
     }
   },
 );

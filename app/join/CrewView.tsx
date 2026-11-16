@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -9,7 +9,11 @@ import {
   crewCode,
   type CrewUpdate,
 } from "@/lib/crew";
-import { crewRequest, CrewRequestError } from "@/lib/crew-request";
+import {
+  crewRequest,
+  CrewRequestError,
+  crewRetryDelay,
+} from "@/lib/crew-request";
 import { clockFormat } from "@/lib/presenter";
 import { AppHeader, AppMenu } from "@/components/AppHeader";
 import { PresenterMessage } from "@/components/PresenterMessage";
@@ -34,18 +38,75 @@ function EventView({ requested }: { requested: string }) {
   const [error, setError] = useState("");
   const [ended, setEnded] = useState(false);
   const [tick, setTick] = useState(0);
+  const [full, setFull] = useState(false);
+  const retry = useRef<() => void>(() => {});
 
   useEffect(() => {
     let active = true;
     let busy = false;
     let terminal = false;
     if (!code) return;
-    async function refresh() {
-      if (busy || terminal || document.visibilityState !== "visible") return;
-      busy = true;
-      const start = performance.now();
+    const storageKey = `aeonCrewViewer:${code}`;
+    let token: string | null = null;
+    try {
+      token = sessionStorage.getItem(storageKey);
+    } catch {
+      /* Memory-only viewing still works. */
+    }
+    let failures = 0;
+    let retryAt = 0;
+    function clearToken() {
+      token = null;
       try {
-        const next = await crewRequest<CrewUpdate>("GET", undefined, code);
+        sessionStorage.removeItem(storageKey);
+      } catch {
+        /* Storage may be unavailable. */
+      }
+    }
+    function release(value: string) {
+      void fetch("/api/crew", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "leave", code, token: value }),
+        keepalive: true,
+      }).catch(() => {});
+    }
+    async function refresh() {
+      if (
+        !active ||
+        busy ||
+        terminal ||
+        performance.now() < retryAt ||
+        document.visibilityState !== "visible"
+      )
+        return;
+      busy = true;
+      try {
+        if (!token) {
+          const admission = await crewRequest<{ token: string }>("POST", {
+            action: "join",
+            code,
+          });
+          if (!active) {
+            release(admission.token);
+            return;
+          }
+          token = admission.token;
+          try {
+            sessionStorage.setItem(storageKey, token);
+          } catch {
+            /* Keep token in memory. */
+          }
+        }
+        const start = performance.now();
+        const next = await crewRequest<CrewUpdate>(
+          "GET",
+          undefined,
+          code,
+          token,
+        );
+        failures = 0;
+        retryAt = 0;
         const receivedAt = performance.now();
         if (active) {
           setUpdate({
@@ -60,6 +121,22 @@ function EventView({ requested }: { requested: string }) {
         }
       } catch (cause) {
         if (active) {
+          failures++;
+          retryAt = performance.now() + crewRetryDelay(failures, cause);
+          if (
+            cause instanceof CrewRequestError &&
+            (cause.status === 401 || cause.status === 410)
+          ) {
+            clearToken();
+            retryAt = performance.now() + 1000;
+          }
+          if (cause instanceof CrewRequestError && cause.status === 409) {
+            terminal = true;
+            clearToken();
+            setUpdate(null);
+            setFull(true);
+            retryAt = 0;
+          }
           if (cause instanceof CrewRequestError && cause.status === 404) {
             terminal = true;
             setUpdate(null);
@@ -75,6 +152,13 @@ function EventView({ requested }: { requested: string }) {
         busy = false;
       }
     }
+    retry.current = () => {
+      if (!active) return;
+      terminal = false;
+      setFull(false);
+      setError("");
+      void refresh();
+    };
     const interval = window.setInterval(() => void refresh(), CREW_POLL_MS);
     const clock = window.setInterval(() => setTick(performance.now()), 250);
     const wake = () => {
@@ -87,6 +171,10 @@ function EventView({ requested }: { requested: string }) {
     void refresh();
     return () => {
       active = false;
+      if (token) {
+        release(token);
+        clearToken();
+      }
       clearInterval(interval);
       clearInterval(clock);
       document.removeEventListener("visibilitychange", wake);
@@ -206,6 +294,15 @@ function EventView({ requested }: { requested: string }) {
             {!update ? (
               <p role="status" className="py-12 text-center">
                 {error || "Connecting to event…"}
+                {full && (
+                  <button
+                    type="button"
+                    className={presenterButton()}
+                    onClick={() => retry.current()}
+                  >
+                    Try joining again
+                  </button>
+                )}
               </p>
             ) : (
               <>

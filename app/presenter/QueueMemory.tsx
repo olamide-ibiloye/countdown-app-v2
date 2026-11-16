@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "sonner";
 import { presenterButton } from "./styles";
 
 import { useId, useState, type FormEvent } from "react";
@@ -44,7 +45,6 @@ export default function QueueMemory({
   const [saved, setSaved] = useState<SavedQueue[]>([]);
   const [name, setName] = useState("");
   const [selection, setSelection] = useState("");
-  const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const matchingName = name.trim().toLowerCase();
   const overwrite = saved.some(
@@ -52,7 +52,6 @@ export default function QueueMemory({
   );
 
   function open(nextMode: "save" | "load") {
-    setStatus("");
     setError("");
     try {
       const memory = readMemory();
@@ -61,7 +60,7 @@ export default function QueueMemory({
       setSelection(memory[0]?.name ?? "");
       setMode(nextMode);
     } catch {
-      setError("Saved queues couldn’t be read from this browser.");
+      toast.error("Saved queues couldn’t be read from this browser.");
     }
   }
 
@@ -86,7 +85,7 @@ export default function QueueMemory({
         if (index === -1) memory.push(item);
         else memory[index] = item;
         localStorage.setItem(QUEUE_MEMORY_KEY, JSON.stringify(memory));
-        setStatus(`Saved “${trimmed}”.`);
+        toast.success(`Saved “${trimmed}”.`);
       } catch {
         setError("The queue couldn’t be saved in this browser.");
         return;
@@ -98,7 +97,7 @@ export default function QueueMemory({
         setError("The queue couldn’t be loaded into this event.");
         return;
       }
-      setStatus(`Loaded “${item.name}”.`);
+      toast.success(`Loaded “${item.name}”.`);
     }
     setMode(undefined);
   }
@@ -121,17 +120,6 @@ export default function QueueMemory({
         >
           <FolderOpen size={15} /> Load Queue
         </button>
-        <span className="text-[0.84rem] text-muted-foreground" role="status">
-          {status}
-        </span>
-        {!mode && error && (
-          <span
-            className="text-[0.84rem] text-red-700 dark:text-red-300"
-            role="alert"
-          >
-            {error}
-          </span>
-        )}
       </div>
       {mode && (
         <dialog
