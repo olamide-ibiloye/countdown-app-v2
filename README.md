@@ -6,11 +6,11 @@ Aeon Timer is a countdown Next.js application hosted at [Aeon Timer](https://aeo
 
 The app opens in **Presenter v3**. Choose **Switch to Classic Timer (v2)** to use the original timer and Auto Pilot. Choose **Presenter v3** in Classic to return to the presenter console.
 
-For a quick timer, enter a duration, choose **Show Countdown**, then press **Start Countdown** in Live controls. Quick timers do not need a session name.
+For a quick timer, enter a duration, choose **Show Countdown**, then press **Start Countdown** under the **On Stage** preview. Quick timers do not need a session name.
 
 **Add to Queue** opens a dialog for a required session name and an editable duration. **Save Preset** saves the current duration directly and is disabled when it is already saved. The queue dialog starts with the quick timer's duration; editing it affects only the saved item. Queue items can be edited in a dialog without changing the quick timer or active countdown.
 
-Use **Open Stage** for an extended display or **Single Screen** for fullscreen on the operator’s screen. In Chrome or Edge, allow automatic display placement and use **Fullscreen Stage** from the dashboard. On Windows, choose **Extend** with **Windows + P** before opening the stage.
+Use **Screen controls & setup → Open Stage** for an extended display or **Single Screen** for fullscreen on the operator’s screen. In Chrome or Edge, allow automatic display placement and use **Fullscreen Stage** from the dashboard. On Windows, choose **Extend** with **Windows + P** before opening the stage.
 
 In Safari, open the stage, drag its window onto the extended display, and choose **Fullscreen** in the stage window. If Safari opens the stage as a tab, choose **Window → Move Tab to New Window** first. Presenter can still confirm the stage window is responding, while its physical display placement remains unverified.
 
@@ -18,7 +18,11 @@ Wait for **Offline ready** on the first visit before disconnecting from the inte
 
 Use **Save Queue** to keep a named lineup and **Load Queue** to reuse it. Saved lineups are stored in this browser and work offline. Loading replaces the planned queue while the live timer and stage output continue.
 
-Use **Image → Import Images** to keep PNG, JPEG, and WebP graphics available offline in this browser. **Send Image to Stage** shows the image without stopping an active countdown. **Fit** shows the whole graphic by default. **Fill Screen** crops the image to cover the display. Changing the fit of a live image takes effect immediately. Switch the stage output before deleting its live image.
+Use **Image → Import Images** to keep PNG, JPEG, and WebP graphics available offline in this browser. A single thumbnail click selects an image privately; **Show Image** or a double-click sends it to stage. **Add to Queue** queues the selected image without changing the stage. Library and queue thumbnails show the graphic; the queue's **Send** action shows it live. **Fit** and **Fill Screen** are available directly under the On Stage preview while an image is live. Fit is the default. Showing an image, clock or message stops and clears the previous countdown.
+
+Clock and Message have **Show Clock** and **Show Message** buttons directly in Prepare output. On Stage controls follow the actual live output independently of the preparation tab. Countdown controls appear only while the countdown is on stage. Save, queue and image action feedback appears as Sonner toasts in the operator console; validation stays beside its fields. Toasts are not shown on the stage display.
+
+**Screen controls & setup** contains display setup, **Blackout Stage**, and **End Event**. **Restore Previous Output** returns from blackout to the previous countdown, clock, message or image, including after a refresh. Blackout does not pause the timer. Ending an event clears its restore state. If a saved image was deleted during blackout, import it again or choose another output.
 
 ## Features
 

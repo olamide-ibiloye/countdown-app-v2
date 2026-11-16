@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test:crew": "node --test tests/crew-api.test.mjs"
+    "test:crew": "node --test tests/crew-api.test.mjs",
+    "test:presenter": "node --test tests/presenter.test.mjs"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -41,6 +42,7 @@
     "react-hook-form": "^7.91.0",
     "react-hotkeys-hook": "^4.6.2",
     "sharp": "^0.35.5",
+    "sonner": "^2.0.8",
     "tailwind-merge": "^2.6.1",
     "zod": "^4.6.7"
   },

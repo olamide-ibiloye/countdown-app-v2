@@ -1,16 +1,17 @@
 "use client";
 
 import { presenterButton } from "./styles";
+import { toast } from "sonner";
+import { PresenterToasts } from "./PresenterToasts";
 
 import { AppHeader, AppMenu } from "@/components/AppHeader";
 import RichTextEditor from "@/components/editMessage/RichTextEditor";
 import {
-  ADD_TIME_MS,
   clockFormat,
-  formatPresenterClock,
   parseDuration,
+  PRESENTER_KEY,
+  readPresenterEvent,
   remainingTime,
-  type ImageQueueItem,
   type PresenterCommand,
   type PresenterEvent,
   type QueueItem,
@@ -37,6 +38,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { CountdownControls } from "./CountdownControls";
 import { CountdownSaveDialog } from "./CountdownSaveDialog";
 import { CrewSharing } from "./CrewSharing";
 import { DurationInput } from "./DurationInput";
@@ -96,18 +98,11 @@ function Console({
   const { details, enable, supportsPlacement } = useDisplayDetails(true);
   const stage = useStageConnection(details, now);
   const [editor, setEditor] = useState<Editor>("countdown");
-  const [queuedImagePreview, setQueuedImagePreview] = useState<{
-    item: ImageQueueItem;
-    request: number;
-  }>();
-  const [imagePreviewTarget, setImagePreviewTarget] =
-    useState<HTMLDivElement | null>(null);
   const [duration, setDuration] = useState("05:00");
   const [saveDialog, setSaveDialog] = useState<{
     duration: string;
     session?: Session;
   }>();
-  const [notice, setNotice] = useState("");
   const [highlightedQueueId, setHighlightedQueueId] = useState<string>();
   const [presets, setPresets] = useState(loadPresets);
   const [twentyFourHours, setTwentyFourHours] = useState(
@@ -116,19 +111,11 @@ function Console({
   const [message, setMessage] = useState(
     output.kind === "message" ? output.html : "<p></p>",
   );
-  const previewOutput: StageOutput | undefined =
-    editor === "clock"
-      ? { kind: "clock", twentyFourHours }
-      : editor === "message"
-        ? { kind: "message", html: message }
-        : undefined;
   const [formError, setFormError] = useState("");
-  const [queueError, setQueueError] = useState("");
   const [singleScreen, setSingleScreen] = useState(false);
   const [confirm, setConfirm] = useState<
     { kind: "cue"; session: Session } | { kind: "end" }
   >();
-  const [fullscreenError, setFullscreenError] = useState("");
 
   useEffect(() => {
     try {
@@ -212,8 +199,11 @@ function Console({
     };
   }
 
+  function showOutput(nextOutput: StageOutput) {
+    return dispatch({ type: "output", output: nextOutput });
+  }
+
   async function cue(item: QueueItem) {
-    setQueueError("");
     if (item.kind !== "image") {
       if (running) setConfirm({ kind: "cue", session: item });
       else dispatch({ type: "cue", session: item });
@@ -221,26 +211,48 @@ function Console({
     }
     try {
       if (!(await getPresenterImage(item.imageId))) {
-        setQueueError(
+        toast.error(
           "This image is no longer in the library. Remove this queue item and add the image again.",
         );
         return;
       }
-      dispatch({
-        type: "output",
-        output: {
-          kind: "image",
-          imageId: item.imageId,
-          name: item.name,
-          fit: item.fit,
-          queueItemId: item.id,
-        },
+      showOutput({
+        kind: "image",
+        imageId: item.imageId,
+        name: item.name,
+        fit: item.fit,
+        queueItemId: item.id,
       });
     } catch {
-      setQueueError(
-        "The image couldn’t be opened from this browser’s library.",
-      );
+      toast.error("The image couldn’t be opened from this browser’s library.");
     }
+  }
+
+  async function restoreOutput() {
+    const previous = event.blackoutOutput;
+    if (!previous) return;
+    if (previous.kind === "image") {
+      try {
+        if (!(await getPresenterImage(previous.imageId))) {
+          toast.error(
+            "The previous image is no longer in the library. Import it again or show another output.",
+          );
+          return;
+        }
+        const latest = readPresenterEvent(localStorage.getItem(PRESENTER_KEY));
+        if (
+          latest.output.kind !== "standby" ||
+          JSON.stringify(latest.blackoutOutput) !== JSON.stringify(previous)
+        )
+          return;
+      } catch {
+        toast.error(
+          "The previous image couldn’t be opened. Try showing another output.",
+        );
+        return;
+      }
+    }
+    dispatch({ type: "restore" });
   }
 
   function editSession(session: Session) {
@@ -276,9 +288,9 @@ function Console({
       : dispatch({ type: "enqueue", item: session });
     if (!saved)
       return "The session couldn’t be saved. Check that browser storage is available.";
-    setQueueError("");
+
     setHighlightedQueueId(session.id);
-    setNotice(
+    toast.success(
       existing
         ? `Updated “${value.name}” in the queue.`
         : `Added “${value.name}” to the queue.`,
@@ -298,9 +310,9 @@ function Console({
       localStorage.setItem(PRESETS_KEY, JSON.stringify(next));
       setPresets(next);
       setFormError("");
-      setNotice(`${preset} preset saved.`);
+      toast.success(`${preset} preset saved.`);
     } catch {
-      setFormError("Your browser couldn’t save this preset.");
+      toast.error("Your browser couldn’t save this preset.");
     }
   }
 
@@ -316,10 +328,10 @@ function Console({
   async function openSingleScreen() {
     try {
       await document.documentElement.requestFullscreen();
+      toast.dismiss();
       setSingleScreen(true);
-      setFullscreenError("");
     } catch {
-      setFullscreenError(
+      toast.error(
         "Your browser couldn’t enter fullscreen. Try the stage window instead.",
       );
     }
@@ -335,6 +347,7 @@ function Console({
 
   return (
     <main className="min-h-dvh bg-background text-foreground [color-scheme:light] dark:[color-scheme:dark] [&_:focus-visible]:outline [&_:focus-visible]:outline-2 [&_:focus-visible]:outline-offset-[3px] [&_:focus-visible]:outline-primary dark:[&_:focus-visible]:outline-primary-contrast">
+      <PresenterToasts />
       <AppHeader>
         <Link
           className={presenterButton({ variant: "quiet" })}
@@ -379,7 +392,7 @@ function Console({
       )}
 
       <div className="mx-auto grid max-w-[1470px] grid-cols-[minmax(0,1.25fr)_minmax(330px,0.92fr)] items-start gap-5 p-[clamp(14px,3vw,38px)] max-[850px]:grid-cols-1">
-        <div className="grid min-w-0 gap-4">
+        <div className="grid min-w-0 gap-4 max-[850px]:order-2">
           <section className="min-w-0 rounded-[14px] border border-border bg-card p-[clamp(15px,2vw,23px)] shadow-[0_1px_3px_hsl(var(--foreground)/0.05)]">
             <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
               <div>
@@ -392,9 +405,6 @@ function Console({
                     : "Prepare output"}
                 </h2>
               </div>
-              <span className="rounded-md bg-muted px-[9px] py-[5px] text-xs font-[650] leading-normal text-muted-foreground">
-                Off stage
-              </span>
             </div>
             <div
               className="mb-4 mt-0.5 flex flex-wrap gap-[5px] rounded-[9px] bg-background p-1"
@@ -414,7 +424,6 @@ function Console({
                   className={presenterButton({ variant: "tab" })}
                   aria-pressed={editor === kind}
                   onClick={() => {
-                    setQueuedImagePreview(undefined);
                     setEditor(kind);
                     setFormError("");
                   }}
@@ -456,7 +465,6 @@ function Console({
                         onClick={() => {
                           setDuration(preset);
                           setFormError("");
-                          setNotice("");
                         }}
                       >
                         {preset}
@@ -470,7 +478,6 @@ function Console({
                     onChange={(value) => {
                       setDuration(value);
                       setFormError("");
-                      setNotice("");
                     }}
                   />
                   <div className="flex flex-wrap gap-[9px]">
@@ -493,7 +500,6 @@ function Console({
                       type="button"
                       className={presenterButton()}
                       onClick={() => {
-                        setNotice("");
                         setSaveDialog({ duration });
                       }}
                     >
@@ -521,9 +527,10 @@ function Console({
             )}
             {editor === "clock" && (
               <div className="grid justify-items-start gap-[13px]">
-                <label className="grid gap-1.5 text-[0.79rem] font-[650] text-muted-foreground">
-                  Clock format
+                <div className="grid gap-1.5 text-[0.79rem] font-[650] text-muted-foreground">
+                  <label htmlFor="presenter-clock-format">Clock format</label>
                   <select
+                    id="presenter-clock-format"
                     className="min-w-0 rounded-[7px] border border-border bg-background px-2.5 py-[9px] text-[0.9rem] text-foreground"
                     value={twentyFourHours ? "24" : "12"}
                     onChange={(e) =>
@@ -533,39 +540,52 @@ function Console({
                     <option value="24">24-hour</option>
                     <option value="12">12-hour</option>
                   </select>
-                </label>
+                </div>
+                <button
+                  type="button"
+                  className={presenterButton({ variant: "primary" })}
+                  onClick={() => showOutput({ kind: "clock", twentyFourHours })}
+                >
+                  Show Clock <ArrowUpRight size={15} />
+                </button>
               </div>
             )}
             {editor === "message" && (
               <div className="grid justify-items-start gap-[13px]">
-                <div className="w-full [&_.tiptap]:min-h-[130px] [&_.tiptap]:text-foreground [&_.tiptap_h1]:text-[1.6em] [&_.tiptap_h1]:font-[750] [&_.tiptap_h2]:text-[1.35em] [&_.tiptap_h2]:font-bold [&_.tiptap_h3]:text-[1.15em] [&_.tiptap_h3]:font-bold [&_.tiptap_ol]:list-decimal [&_.tiptap_ol]:ps-[1.4em] [&_.tiptap_ul]:ps-[1.4em] [&_button[data-state=on]]:bg-primary/10 [&_button[data-state=on]]:text-primary dark:[&_button[data-state=on]]:text-primary-contrast [&_button]:text-foreground">
+                <div className="w-full space-y-4 [&_.tiptap]:min-h-[130px] [&_.tiptap]:text-foreground [&_.tiptap_h1]:text-[1.6em] [&_.tiptap_h1]:font-[750] [&_.tiptap_h2]:text-[1.35em] [&_.tiptap_h2]:font-bold [&_.tiptap_h3]:text-[1.15em] [&_.tiptap_h3]:font-bold [&_.tiptap_ol]:list-decimal [&_.tiptap_ol]:ps-[1.4em] [&_.tiptap_ul]:ps-[1.4em] [&_button[data-state=on]]:bg-primary/10 [&_button[data-state=on]]:text-primary dark:[&_button[data-state=on]]:text-primary-contrast [&_button]:text-foreground">
                   <RichTextEditor
                     message={message}
                     onChange={setMessage}
                     placeholder="Type your message here"
                   />
                 </div>
+                <button
+                  type="button"
+                  className={presenterButton({ variant: "primary" })}
+                  disabled={!message.replace(/<[^>]+>/g, "").trim()}
+                  onClick={() =>
+                    dispatch({
+                      type: "output",
+                      output: { kind: "message", html: message },
+                    })
+                  }
+                >
+                  Show Message <ArrowUpRight size={15} />
+                </button>
               </div>
             )}
             {editor === "image" && (
               <ImageLibrary
-                key={queuedImagePreview?.request ?? "library"}
                 output={output}
-                dispatch={dispatch}
-                previewTarget={imagePreviewTarget}
-                initialSelection={queuedImagePreview?.item}
+                dispatch={(command) =>
+                  command.type === "output"
+                    ? showOutput(command.output)
+                    : dispatch(command)
+                }
               />
             )}
           </section>
 
-          {notice && (
-            <p
-              role="status"
-              className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-foreground"
-            >
-              {notice}
-            </p>
-          )}
           <section className="min-w-0 rounded-[14px] border border-border bg-card p-[clamp(15px,2vw,23px)] shadow-[0_1px_3px_hsl(var(--foreground)/0.05)]">
             <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
               <div>
@@ -585,20 +605,11 @@ function Console({
               onLoad={(loadedQueue) => {
                 if (!dispatch({ type: "queue", queue: loadedQueue }))
                   return false;
-                setQueueError("");
-                setNotice("");
+
                 setHighlightedQueueId(undefined);
                 return true;
               }}
             />
-            {queueError && (
-              <p
-                className="mb-3 text-[0.84rem] text-red-700 dark:text-red-300"
-                role="alert"
-              >
-                {queueError}
-              </p>
-            )}
             {!queue.length ? (
               <div className="grid justify-items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-5 text-center text-[0.84rem] text-muted-foreground">
                 <Timer size={21} />
@@ -690,7 +701,7 @@ function Console({
                                 (item) => item.id !== session.id,
                               ),
                             });
-                            setQueueError("");
+
                             if (highlightedQueueId === session.id)
                               setHighlightedQueueId(undefined);
                           }}
@@ -704,22 +715,6 @@ function Console({
                             onClick={() => editSession(session)}
                           >
                             Edit
-                          </button>
-                        )}
-                        {session.kind === "image" && (
-                          <button
-                            type="button"
-                            className={presenterButton({ size: "queue" })}
-                            aria-label={`Preview ${session.name}`}
-                            onClick={() => {
-                              setQueuedImagePreview((previous) => ({
-                                item: session,
-                                request: (previous?.request ?? 0) + 1,
-                              }));
-                              setEditor("image");
-                            }}
-                          >
-                            Preview
                           </button>
                         )}
                         <button
@@ -740,7 +735,7 @@ function Console({
         </div>
 
         <aside
-          className="sticky top-3 grid min-w-0 gap-4 max-[850px]:static"
+          className="sticky top-3 grid min-w-0 gap-4 max-[850px]:static max-[850px]:order-1"
           aria-label="Stage monitoring and live controls"
         >
           <section className="min-w-0 rounded-[14px] border border-border bg-card p-[clamp(15px,2vw,23px)] shadow-[0_1px_3px_hsl(var(--foreground)/0.05)]">
@@ -801,6 +796,45 @@ function Console({
                 </span>
               )}
             </div>
+            {output.kind === "image" && (
+              <fieldset className="mt-3.5 border-t border-border pt-3.5">
+                <legend className="text-sm font-semibold">Image display</legend>
+                <div className="flex flex-wrap gap-[9px]">
+                  {(["fit", "fill"] as const).map((fit) => (
+                    <button
+                      type="button"
+                      key={fit}
+                      className={cn(
+                        presenterButton(),
+                        "aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-primary dark:aria-pressed:text-primary-contrast",
+                      )}
+                      aria-pressed={output.fit === fit}
+                      onClick={() =>
+                        dispatch({
+                          type: "image-fit",
+                          imageId: output.imageId,
+                          fit,
+                        })
+                      }
+                    >
+                      {fit === "fit" ? "Fit" : "Fill Screen"}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            )}
+            {output.kind === "countdown" && timer && (
+              <CountdownControls timer={timer} now={now} dispatch={dispatch} />
+            )}
+          </section>
+
+          <section
+            aria-label="Screen controls and setup"
+            className="min-w-0 rounded-[14px] border border-border bg-card p-[clamp(15px,2vw,23px)] shadow-[0_1px_3px_hsl(var(--foreground)/0.05)]"
+          >
+            <h2 className="mb-3.5 text-xl font-bold leading-normal tracking-tight">
+              Screen controls &amp; setup
+            </h2>
             <div className="flex flex-wrap items-center gap-[9px]">
               <button
                 type="button"
@@ -864,176 +898,32 @@ function Console({
                 {stage.hint}
               </p>
             )}
-            {fullscreenError && (
-              <p
-                className="text-[0.84rem] text-red-700 dark:text-red-300"
-                role="alert"
-              >
-                {fullscreenError}
-              </p>
-            )}
-          </section>
-
-          <section className="min-w-0 rounded-[14px] border border-border bg-card p-[clamp(15px,2vw,23px)] shadow-[0_1px_3px_hsl(var(--foreground)/0.05)]">
-            <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
-              <div>
-                {editor === "countdown" && (
-                  <p className="mb-[3px] flex items-center gap-1.5 text-[0.7rem] font-bold uppercase tracking-[0.095em] text-muted-foreground">
-                    <Timer size={14} /> Countdown
-                  </p>
-                )}
-                <h2 className="text-xl font-bold leading-normal tracking-tight">
-                  Live controls
-                </h2>
-              </div>
-              {editor === "countdown" && timer && (
-                <span className="rounded-md bg-muted px-[9px] py-[5px] text-xs font-[650] leading-normal text-muted-foreground">
-                  {finished
-                    ? "Finished"
-                    : running
-                      ? "Running"
-                      : timer.phase === "paused"
-                        ? "Paused"
-                        : "Ready · Press Start"}
-                </span>
-              )}
-            </div>
-            {editor === "countdown" &&
-              (!timer ? (
-                <p className="mt-2 text-[0.84rem] text-muted-foreground">
-                  Show a countdown on stage, then start it here.
-                </p>
-              ) : (
-                <>
-                  <div className="mb-[13px] mt-[9px] grid gap-0.5">
-                    <span>{timer.name}</span>
-                    <strong className="font-presenter-mono text-[clamp(1.7rem,4vw,2.6rem)] tabular-nums leading-[1.15] tracking-[-0.04em] text-primary dark:text-primary-foreground">
-                      {finished ? "Time’s Up" : clockFormat(remaining)}
-                    </strong>
-                    {output.kind !== "countdown" && (
-                      <span className="text-[0.84rem] text-muted-foreground">
-                        Off stage
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-[9px]">
-                    <button
-                      type="button"
-                      className={presenterButton({ variant: "primary" })}
-                      disabled={finished}
-                      onClick={() =>
-                        dispatch({ type: running ? "pause" : "play" })
-                      }
-                    >
-                      {running
-                        ? "Pause"
-                        : timer.phase === "paused"
-                          ? "Resume Countdown"
-                          : "Start Countdown"}
-                    </button>
-                    <button
-                      type="button"
-                      className={presenterButton()}
-                      disabled={timer.phase === "ready"}
-                      onClick={() => dispatch({ type: "reset" })}
-                    >
-                      Reset
-                    </button>
-                  </div>
-                  <div className="mt-[11px] flex flex-wrap items-center gap-[9px] text-[0.78rem] text-muted-foreground">
-                    <span>Add Time</span>
-                    {ADD_TIME_MS.map((durationMs, index) => (
-                      <button
-                        type="button"
-                        key={durationMs}
-                        className={presenterButton({ size: "small" })}
-                        disabled={finished}
-                        onClick={() => dispatch({ type: "extend", durationMs })}
-                      >
-                        {["+30 sec", "+1 min", "+5 min"][index]}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              ))}
-            {editor === "image" && <div ref={setImagePreviewTarget} />}
-            {previewOutput && (
-              <figure className="mt-3.5 w-[min(100%,320px)]">
-                <figcaption className="mb-[3px] flex items-center gap-1.5 text-[0.7rem] font-bold uppercase tracking-[0.095em] text-muted-foreground">
-                  {previewOutput.kind === "clock"
-                    ? "Clock preview"
-                    : "Message preview"}
-                </figcaption>
-                {previewOutput.kind === "clock" ? (
-                  <div className="mb-[13px] mt-[9px] grid gap-0.5">
-                    <strong className="font-presenter-mono text-[clamp(1.7rem,4vw,2.6rem)] tabular-nums leading-[1.15] tracking-[-0.04em] text-primary dark:text-primary-foreground">
-                      {now
-                        ? formatPresenterClock(
-                            now,
-                            previewOutput.twentyFourHours,
-                          )
-                        : ""}
-                    </strong>
-                  </div>
-                ) : (
-                  <div className="relative aspect-video overflow-hidden rounded-[10px] border border-border bg-white dark:bg-dark-2">
-                    <StageContent
-                      event={{ ...event, output: previewOutput }}
-                      now={now}
-                      preview
-                    />
-                  </div>
-                )}
-                <button
-                  type="button"
-                  className={cn(
-                    presenterButton({ variant: "primary" }),
-                    "mt-2.5",
-                  )}
-                  disabled={
-                    previewOutput.kind === "message" &&
-                    !message.replace(/<[^>]+>/g, "").trim()
-                  }
-                  onClick={() =>
-                    dispatch({ type: "output", output: previewOutput })
-                  }
-                >
-                  {previewOutput.kind === "clock"
-                    ? "Send Clock to Stage"
-                    : "Send Message to Stage"}
-                  <ArrowUpRight size={15} />
-                </button>
-              </figure>
-            )}
-            <div className="mt-3.5 flex flex-wrap items-center gap-[9px] border-t border-border pt-[13px]">
-              {timer && output.kind !== "countdown" && (
-                <button
-                  type="button"
-                  className={presenterButton()}
-                  onClick={() =>
-                    dispatch({
-                      type: "output",
-                      output: { kind: "countdown" },
-                    })
-                  }
-                >
-                  Return Timer to Stage
-                </button>
-              )}
+            <div className="mt-3.5 flex flex-wrap gap-[9px] border-t border-border pt-3.5">
               <button
                 type="button"
                 className={presenterButton({ variant: "quiet" })}
                 disabled={output.kind === "standby"}
-                onClick={() =>
-                  dispatch({ type: "output", output: { kind: "standby" } })
-                }
+                onClick={() => {
+                  dispatch({ type: "blackout" });
+                }}
               >
                 Blackout Stage
               </button>
+              {output.kind === "standby" && event.blackoutOutput && (
+                <button
+                  type="button"
+                  className={presenterButton()}
+                  onClick={() => void restoreOutput()}
+                >
+                  Restore Previous Output
+                </button>
+              )}
               <button
                 type="button"
                 className={presenterButton({ variant: "danger" })}
-                disabled={!timer && output.kind === "standby"}
+                disabled={
+                  !timer && output.kind === "standby" && !event.blackoutOutput
+                }
                 onClick={() => setConfirm({ kind: "end" })}
               >
                 End Event
@@ -1071,6 +961,7 @@ function Console({
                 ? { type: "cue", session: confirm.session }
                 : { type: "end" },
             );
+
             setConfirm(undefined);
           }}
         />
