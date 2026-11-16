@@ -6,6 +6,10 @@ Aeon Timer is a countdown Next.js application hosted at [Aeon Timer](https://aeo
 
 The app opens in **Presenter v3**. Choose **Switch to Classic Timer (v2)** to use the original timer and Auto Pilot. Choose **Presenter v3** in Classic to return to the presenter console.
 
+For a quick timer, enter a duration, choose **Show Countdown**, then press **Start Countdown** in Live controls. Quick timers do not need a session name.
+
+**Add to Queue** opens a dialog for a required session name and an editable duration. **Save Preset** saves the current duration directly and is disabled when it is already saved. The queue dialog starts with the quick timer's duration; editing it affects only the saved item. Queue items can be edited in a dialog without changing the quick timer or active countdown.
+
 Use **Open Stage** for an extended display or **Single Screen** for fullscreen on the operator’s screen. In Chrome or Edge, allow automatic display placement and use **Fullscreen Stage** from the dashboard. On Windows, choose **Extend** with **Windows + P** before opening the stage.
 
 In Safari, open the stage, drag its window onto the extended display, and choose **Fullscreen** in the stage window. If Safari opens the stage as a tab, choose **Window → Move Tab to New Window** first. Presenter can still confirm the stage window is responding, while its physical display placement remains unverified.
