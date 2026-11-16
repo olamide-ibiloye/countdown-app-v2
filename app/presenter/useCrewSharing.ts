@@ -18,7 +18,19 @@ import {
   stopCrewLocally,
   type CrewSession,
 } from "@/lib/crew";
-import { CrewRequestError, crewRequest } from "@/lib/crew-request";
+import {
+  CrewRequestError,
+  crewRequest,
+  crewRetryDelay,
+} from "@/lib/crew-request";
+
+import {
+  readPublication,
+  savePublication,
+  publicationBlocked,
+  publicationUnchanged,
+  publicationFingerprint,
+} from "@/lib/crew-publication";
 
 function subscribe(sync: () => void) {
   const storage = (event: StorageEvent) => {
@@ -65,35 +77,73 @@ export function useCrewSharing(event: PresenterEvent) {
         const send = async () => {
           const current = readCrewSession();
           if (!current || current.code !== expectedCode) return;
-          if (current.pendingStop) {
-            await crewRequest("DELETE", {
-              code: current.code,
-              token: current.token,
-            });
-            if (readCrewSession()?.code === current.code) saveCrewSession(null);
-            if (active) setError("");
-          } else {
-            const event = readPresenterEvent(
-              localStorage.getItem(PRESENTER_KEY),
-            );
-            const sentAt = Date.now();
-            // Preserve ordering across refreshes and backward wall-clock changes.
-            const previous = Number(localStorage.getItem(CREW_SEQUENCE_KEY));
-            const sequence = Math.max(
-              sentAt,
-              Number.isSafeInteger(previous) ? previous + 1 : 1,
-            );
-            localStorage.setItem(CREW_SEQUENCE_KEY, String(sequence));
-            await crewRequest("PUT", {
-              code: current.code,
-              token: current.token,
-              sequence,
-              snapshot: crewSnapshot(event, sentAt),
-            });
-            if (active) {
-              setLastPublished(Date.now());
-              setError("");
+          const record = readPublication(current.code);
+          const attemptedAt = Date.now();
+          if (
+            publicationBlocked(record, attemptedAt) &&
+            (!current.pendingStop || record.stopping)
+          )
+            return;
+          try {
+            if (current.pendingStop) {
+              await crewRequest("DELETE", {
+                code: current.code,
+                token: current.token,
+              });
+              if (readCrewSession()?.code === current.code)
+                saveCrewSession(null);
+              if (active) setError("");
+            } else {
+              const event = readPresenterEvent(
+                localStorage.getItem(PRESENTER_KEY),
+              );
+              const fingerprint = await publicationFingerprint(
+                JSON.stringify(event),
+              );
+              if (publicationUnchanged(record, fingerprint, Date.now())) {
+                if (active) {
+                  setLastPublished(record.sentAt);
+                  setError("");
+                }
+                return;
+              }
+              const sentAt = Date.now();
+              // Preserve ordering across refreshes and backward wall-clock changes.
+              const previous = Number(localStorage.getItem(CREW_SEQUENCE_KEY));
+              const sequence = Math.max(
+                sentAt,
+                Number.isSafeInteger(previous) ? previous + 1 : 1,
+              );
+              localStorage.setItem(CREW_SEQUENCE_KEY, String(sequence));
+              await crewRequest("PUT", {
+                code: current.code,
+                token: current.token,
+                sequence,
+                snapshot: crewSnapshot(event, sentAt),
+              });
+              savePublication({
+                code: current.code,
+                sentAt: Date.now(),
+                attemptedAt,
+                fingerprint,
+                failures: 0,
+                retryAt: 0,
+              });
+              if (active) {
+                setLastPublished(Date.now());
+                setError("");
+              }
             }
+          } catch (cause) {
+            const failures = record.failures + 1;
+            savePublication({
+              ...record,
+              attemptedAt,
+              stopping: Boolean(current.pendingStop),
+              failures,
+              retryAt: Date.now() + crewRetryDelay(failures, cause),
+            });
+            throw cause;
           }
         };
         if (navigator.locks) {

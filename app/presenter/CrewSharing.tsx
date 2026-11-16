@@ -90,8 +90,9 @@ export function CrewSharing({
           </button>
         </div>
         <p className="mb-4 text-sm text-muted-foreground">
-          Crew can view the live output and current/up-next items on their
-          phones. Internet is needed for sharing; the local timer works offline.
+          Up to 3 viewers can see the live output and current/up-next items on
+          their phones. Internet is needed for sharing; the local timer works
+          offline.
         </p>
         {session && !session.pendingStop ? (
           <div className="grid justify-items-center gap-3">

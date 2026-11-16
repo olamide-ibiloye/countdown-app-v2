@@ -70,3 +70,5 @@ This project is licensed under the [MIT License](LICENSE).
 Use **Share with crew** in Presenter to create a temporary event code, QR code and link. Crew open `/join` on their phones to see the live countdown, clock, message or image name, alongside current/up-next items. Crew views refresh every 10 seconds while connected; connection warnings appear when data is stale. The local timer and stage keep working offline.
 
 Sharing requires a server-side Upstash Redis integration on Vercel. See [Crew sharing setup and behaviour](docs/crew-sharing.md) and [.env.example](.env.example). Codes survive dashboard refreshes, expire after 24 hours, and are cancelled by **Stop Sharing** or **End Event**. Offline cancellations are retried when the dashboard reconnects.
+
+Crew sharing supports at most **three active viewer sessions per event**. See [Crew protection setup](docs/crew-protection.md) for the Vercel Hobby firewall rule and Upstash PAYG budget settings.
