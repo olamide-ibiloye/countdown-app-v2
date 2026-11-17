@@ -5,6 +5,14 @@ import { PresenterToasts } from "./PresenterToasts";
 import { presenterButton } from "./styles";
 
 import { AppHeader, AppMenu } from "@/components/AppHeader";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import RichTextEditor from "@/components/editMessage/RichTextEditor";
 import {
   ADD_TIME_MS,
@@ -43,6 +51,7 @@ import { useEffect, useState } from "react";
 import {
   KeyboardShortcuts,
   isEndEventShortcut,
+  isGoLiveShortcut,
   useKeyboardShortcuts,
   useLearningHint,
   dismissHint,
@@ -113,6 +122,7 @@ function Console({
     session?: Session;
   }>();
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [selectedPreset, setSelectedPreset] = useState<string>();
   const [selectedQueueId, setSelectedQueueId] = useState<string>();
   const presetHint = useLearningHint("aeon:preset-double-click:v1");
   const spaceHint = useLearningHint("aeon:space-tip:v1");
@@ -321,6 +331,33 @@ function Console({
     }
   }
 
+  function removePreset(preset: string) {
+    const next = presets.filter((value) => value !== preset);
+    try {
+      localStorage.setItem(PRESETS_KEY, JSON.stringify(next));
+      setPresets(next);
+      setSelectedPreset(undefined);
+      toast.success(`${preset} preset removed.`);
+    } catch {
+      toast.error("Your browser couldn’t remove this preset.");
+    }
+  }
+
+  function removeQueueItem(id: string) {
+    const item = queue.find((item) => item.id === id);
+    if (
+      !item ||
+      !dispatch({
+        type: "queue",
+        queue: queue.filter((item) => item.id !== id),
+      })
+    )
+      return;
+    if (selectedQueueId === id) setSelectedQueueId(undefined);
+    if (highlightedQueueId === id) setHighlightedQueueId(undefined);
+    toast.success(`Removed “${item.name}” from the queue.`);
+  }
+
   function moveSession(index: number, offset: number) {
     const reordered = [...queue];
     [reordered[index], reordered[index + offset]] = [
@@ -353,7 +390,12 @@ function Console({
     if (confirm || saveDialog || shortcutsOpen) return;
     const countdown = output.kind === "countdown" && timer && !finished;
     if (singleScreen && key.code !== "Space") return;
-    if (isEndEventShortcut(key)) {
+    if (isGoLiveShortcut(key)) {
+      key.preventDefault();
+      document
+        .querySelector<HTMLButtonElement>("[data-prepare-go-live]")
+        ?.click();
+    } else if (isEndEventShortcut(key)) {
       if (!timer && output.kind === "standby" && !event.blackoutOutput) return;
       key.preventDefault();
       setConfirm({ kind: "end" });
@@ -413,12 +455,28 @@ function Console({
                 index + (key.key === "ArrowDown" ? 1 : -1),
               ),
             );
+      setSelectedPreset(undefined);
       setSelectedQueueId(queue[next].id);
       const row = document.querySelector<HTMLElement>(
         `[data-queue-id="${CSS.escape(queue[next].id)}"]`,
       );
       row?.focus({ preventScroll: true });
       row?.scrollIntoView({ block: "nearest" });
+    } else if (
+      (key.key === "Delete" || key.key === "Backspace") &&
+      !key.shiftKey
+    ) {
+      key.preventDefault();
+      if (selectedQueueId) {
+        removeQueueItem(selectedQueueId);
+      } else if (
+        editor === "countdown" &&
+        selectedPreset &&
+        presets.includes(selectedPreset)
+      ) {
+        key.preventDefault();
+        removePreset(selectedPreset);
+      }
     } else if (key.key === "Enter") {
       const item = queue.find((item) => item.id === selectedQueueId);
       if (item) {
@@ -498,208 +556,236 @@ function Console({
                 </h2>
               </div>
             </div>
-            <div
-              className="mb-4 mt-0.5 flex flex-wrap gap-[5px] rounded-[9px] bg-background p-1"
-              aria-label="Output type"
+            <Tabs
+              value={editor}
+              onValueChange={(value) => {
+                setEditor(value as Editor);
+                setFormError("");
+              }}
             >
-              {(
-                [
-                  { kind: "countdown", label: "Countdown", Icon: Timer },
-                  { kind: "clock", label: "Clock", Icon: Clock3 },
-                  { kind: "image", label: "Image", Icon: ImageIcon },
-                  { kind: "message", label: "Message", Icon: Type },
-                ] as const
-              ).map(({ kind, label, Icon }) => (
-                <button
-                  type="button"
-                  key={kind}
-                  className={presenterButton({ variant: "tab" })}
-                  aria-pressed={editor === kind}
-                  onClick={() => {
-                    setEditor(kind);
-                    setFormError("");
-                  }}
-                >
-                  <Icon size={16} /> {label}
-                </button>
-              ))}
-            </div>
-            {editor === "countdown" && (
-              <form
-                className="grid justify-items-start gap-4"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const draft = readDraft();
-                  if (draft) void cue(draft);
-                }}
+              <TabsList
+                className="mb-4 mt-0.5 flex w-full flex-wrap gap-1"
+                aria-label="Output type"
               >
-                <div
-                  className="grid w-full gap-1.5"
-                  role="group"
-                  aria-label="Presets"
-                >
-                  <span className="text-[0.79rem] font-[650] text-muted-foreground">
-                    Presets
-                  </span>
-                  {presetHint && (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>Double-click a preset to show it on stage.</span>
-                      <button
-                        type="button"
-                        aria-label="Dismiss preset tip"
-                        onClick={() =>
-                          dismissHint("aeon:preset-double-click:v1")
-                        }
-                      >
-                        ×
-                      </button>
+                {(
+                  [
+                    { kind: "countdown", label: "Countdown", Icon: Timer },
+                    { kind: "clock", label: "Clock", Icon: Clock3 },
+                    { kind: "image", label: "Image", Icon: ImageIcon },
+                    { kind: "message", label: "Message", Icon: Type },
+                  ] as const
+                ).map(({ kind, label, Icon }) => (
+                  <TabsTrigger
+                    value={kind}
+                    key={kind}
+                    className="min-h-[37px] flex-1"
+                  >
+                    <Icon size={16} className="hidden sm:block" /> {label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              {editor === "countdown" && (
+                <TabsContent value="countdown" className="mt-0">
+                  <form
+                    className="grid justify-items-start gap-4"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      const draft = readDraft();
+                      if (draft) void cue(draft);
+                    }}
+                  >
+                    <div
+                      className="grid w-full gap-1.5"
+                      role="group"
+                      aria-label="Presets"
+                    >
+                      <span className="text-[0.79rem] font-[650] text-muted-foreground">
+                        Presets
+                      </span>
+                      {presetHint && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>
+                            Double-click a preset to show it on stage.
+                          </span>
+                          <button
+                            type="button"
+                            aria-label="Dismiss preset tip"
+                            onClick={() =>
+                              dismissHint("aeon:preset-double-click:v1")
+                            }
+                          >
+                            ×
+                          </button>
+                        </div>
+                      )}
+                      <div className="flex flex-wrap gap-[9px]">
+                        {presets.map((preset) => (
+                          <button
+                            type="button"
+                            className={cn(
+                              presenterButton({ size: "small" }),
+                              "aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-primary dark:aria-pressed:text-primary-contrast",
+                            )}
+                            key={preset}
+                            onDoubleClick={() =>
+                              void cue(
+                                {
+                                  id: crypto.randomUUID(),
+                                  name: "Countdown",
+                                  durationMs: parseDuration(preset)!,
+                                },
+                                true,
+                              )
+                            }
+                            aria-pressed={
+                              parseDuration(duration.trim()) ===
+                              parseDuration(preset)
+                            }
+                            onClick={() => {
+                              setSelectedQueueId(undefined);
+                              setSelectedPreset(preset);
+                              setDuration(preset);
+                              setFormError("");
+                            }}
+                          >
+                            {preset}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  )}
-                  <div className="flex flex-wrap gap-[9px]">
-                    {presets.map((preset) => (
-                      <button
-                        type="button"
-                        className={cn(
-                          presenterButton({ size: "small" }),
-                          "aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-primary dark:aria-pressed:text-primary-contrast",
-                        )}
-                        key={preset}
-                        onDoubleClick={() =>
-                          void cue(
-                            {
-                              id: crypto.randomUUID(),
-                              name: "Countdown",
-                              durationMs: parseDuration(preset)!,
-                            },
-                            true,
-                          )
-                        }
-                        aria-pressed={
-                          parseDuration(duration.trim()) ===
-                          parseDuration(preset)
-                        }
-                        onClick={() => {
-                          setDuration(preset);
+                    <div className="grid w-full grid-cols-[minmax(0,220px)_minmax(0,1fr)] items-end gap-3 max-[600px]:grid-cols-1">
+                      <DurationInput
+                        value={duration}
+                        onChange={(value) => {
+                          setDuration(value);
                           setFormError("");
                         }}
+                      />
+                      <div className="flex flex-wrap gap-[9px]">
+                        <button
+                          type="button"
+                          className={presenterButton({ variant: "quiet" })}
+                          disabled={
+                            quickDurationMs === undefined || durationIsPreset
+                          }
+                          title={
+                            durationIsPreset
+                              ? "This duration is already saved as a preset"
+                              : undefined
+                          }
+                          onClick={savePreset}
+                        >
+                          <Plus size={14} /> Save Preset
+                        </button>
+                        <button
+                          type="button"
+                          className={presenterButton()}
+                          onClick={() => {
+                            setSaveDialog({ duration });
+                          }}
+                        >
+                          <Plus size={16} /> Add to Queue
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid gap-1.5">
+                      <button
+                        data-prepare-go-live
+                        type="submit"
+                        className={presenterButton({ variant: "primary" })}
                       >
-                        {preset}
+                        Show Countdown <ArrowUpRight size={15} />
                       </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="grid w-full grid-cols-[minmax(0,220px)_minmax(0,1fr)] items-end gap-3 max-[600px]:grid-cols-1">
-                  <DurationInput
-                    value={duration}
-                    onChange={(value) => {
-                      setDuration(value);
-                      setFormError("");
-                    }}
-                  />
-                  <div className="flex flex-wrap gap-[9px]">
+                    </div>
+                    {formError && (
+                      <p
+                        className="text-[0.84rem] text-red-700 dark:text-red-300"
+                        role="alert"
+                      >
+                        {formError}
+                      </p>
+                    )}
+                  </form>
+                </TabsContent>
+              )}
+              {editor === "clock" && (
+                <TabsContent value="clock" className="mt-0">
+                  <div className="grid justify-items-start gap-[13px]">
+                    <div className="grid gap-1.5 text-[0.79rem] font-[650] text-muted-foreground">
+                      <label htmlFor="presenter-clock-format">
+                        Clock format
+                      </label>
+                      <Select
+                        value={twentyFourHours ? "24" : "12"}
+                        onValueChange={(value) =>
+                          setTwentyFourHours(value === "24")
+                        }
+                      >
+                        <SelectTrigger
+                          id="presenter-clock-format"
+                          className="w-[130px] font-semibold"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="24">24-hour</SelectItem>
+                          <SelectItem value="12">12-hour</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <button
+                      data-prepare-go-live
                       type="button"
-                      className={presenterButton({ variant: "quiet" })}
-                      disabled={
-                        quickDurationMs === undefined || durationIsPreset
+                      className={presenterButton({ variant: "primary" })}
+                      onClick={() =>
+                        showOutput({ kind: "clock", twentyFourHours })
                       }
-                      title={
-                        durationIsPreset
-                          ? "This duration is already saved as a preset"
-                          : undefined
-                      }
-                      onClick={savePreset}
                     >
-                      <Plus size={14} /> Save Preset
-                    </button>
-                    <button
-                      type="button"
-                      className={presenterButton()}
-                      onClick={() => {
-                        setSaveDialog({ duration });
-                      }}
-                    >
-                      <Plus size={16} /> Add to Queue
+                      Show Clock <ArrowUpRight size={15} />
                     </button>
                   </div>
-                </div>
-                <div className="grid gap-1.5">
-                  <button
-                    type="submit"
-                    className={presenterButton({ variant: "primary" })}
-                  >
-                    Show Countdown <ArrowUpRight size={15} />
-                  </button>
-                </div>
-                {formError && (
-                  <p
-                    className="text-[0.84rem] text-red-700 dark:text-red-300"
-                    role="alert"
-                  >
-                    {formError}
-                  </p>
-                )}
-              </form>
-            )}
-            {editor === "clock" && (
-              <div className="grid justify-items-start gap-[13px]">
-                <div className="grid gap-1.5 text-[0.79rem] font-[650] text-muted-foreground">
-                  <label htmlFor="presenter-clock-format">Clock format</label>
-                  <select
-                    id="presenter-clock-format"
-                    className="min-w-0 rounded-[7px] border border-border bg-background px-2.5 py-[9px] text-[0.9rem] text-foreground"
-                    value={twentyFourHours ? "24" : "12"}
-                    onChange={(e) =>
-                      setTwentyFourHours(e.target.value === "24")
+                </TabsContent>
+              )}
+              {editor === "message" && (
+                <TabsContent value="message" className="mt-0">
+                  <div className="grid justify-items-start gap-[13px]">
+                    <div className="w-full space-y-4 [&_.tiptap]:min-h-[130px] [&_.tiptap]:text-foreground [&_.tiptap_h1]:text-[1.6em] [&_.tiptap_h1]:font-[750] [&_.tiptap_h2]:text-[1.35em] [&_.tiptap_h2]:font-bold [&_.tiptap_h3]:text-[1.15em] [&_.tiptap_h3]:font-bold [&_.tiptap_ol]:list-decimal [&_.tiptap_ol]:ps-[1.4em] [&_.tiptap_ul]:ps-[1.4em] [&_button[data-state=on]]:bg-primary/10 [&_button[data-state=on]]:text-primary dark:[&_button[data-state=on]]:text-primary-contrast [&_button]:text-foreground">
+                      <RichTextEditor
+                        message={message}
+                        onChange={setMessage}
+                        placeholder="Type your message here"
+                      />
+                    </div>
+                    <button
+                      data-prepare-go-live
+                      type="button"
+                      className={presenterButton({ variant: "primary" })}
+                      disabled={!message.replace(/<[^>]+>/g, "").trim()}
+                      onClick={() =>
+                        dispatch({
+                          type: "output",
+                          output: { kind: "message", html: message },
+                        })
+                      }
+                    >
+                      Show Message <ArrowUpRight size={15} />
+                    </button>
+                  </div>
+                </TabsContent>
+              )}
+              {editor === "image" && (
+                <TabsContent value="image" className="mt-0">
+                  <ImageLibrary
+                    output={output}
+                    dispatch={(command) =>
+                      command.type === "output"
+                        ? showOutput(command.output)
+                        : dispatch(command)
                     }
-                  >
-                    <option value="24">24-hour</option>
-                    <option value="12">12-hour</option>
-                  </select>
-                </div>
-                <button
-                  type="button"
-                  className={presenterButton({ variant: "primary" })}
-                  onClick={() => showOutput({ kind: "clock", twentyFourHours })}
-                >
-                  Show Clock <ArrowUpRight size={15} />
-                </button>
-              </div>
-            )}
-            {editor === "message" && (
-              <div className="grid justify-items-start gap-[13px]">
-                <div className="w-full space-y-4 [&_.tiptap]:min-h-[130px] [&_.tiptap]:text-foreground [&_.tiptap_h1]:text-[1.6em] [&_.tiptap_h1]:font-[750] [&_.tiptap_h2]:text-[1.35em] [&_.tiptap_h2]:font-bold [&_.tiptap_h3]:text-[1.15em] [&_.tiptap_h3]:font-bold [&_.tiptap_ol]:list-decimal [&_.tiptap_ol]:ps-[1.4em] [&_.tiptap_ul]:ps-[1.4em] [&_button[data-state=on]]:bg-primary/10 [&_button[data-state=on]]:text-primary dark:[&_button[data-state=on]]:text-primary-contrast [&_button]:text-foreground">
-                  <RichTextEditor
-                    message={message}
-                    onChange={setMessage}
-                    placeholder="Type your message here"
                   />
-                </div>
-                <button
-                  type="button"
-                  className={presenterButton({ variant: "primary" })}
-                  disabled={!message.replace(/<[^>]+>/g, "").trim()}
-                  onClick={() =>
-                    dispatch({
-                      type: "output",
-                      output: { kind: "message", html: message },
-                    })
-                  }
-                >
-                  Show Message <ArrowUpRight size={15} />
-                </button>
-              </div>
-            )}
-            {editor === "image" && (
-              <ImageLibrary
-                output={output}
-                dispatch={(command) =>
-                  command.type === "output"
-                    ? showOutput(command.output)
-                    : dispatch(command)
-                }
-              />
-            )}
+                </TabsContent>
+              )}
+            </Tabs>
           </section>
 
           <section className="min-w-0 rounded-[14px] border border-border bg-card p-[clamp(15px,2vw,23px)] shadow-[0_1px_3px_hsl(var(--foreground)/0.05)]">
@@ -750,8 +836,14 @@ function Console({
                           ? 0
                           : -1
                       }
-                      onFocus={() => setSelectedQueueId(session.id)}
-                      onClick={() => setSelectedQueueId(session.id)}
+                      onFocus={() => {
+                        setSelectedPreset(undefined);
+                        setSelectedQueueId(session.id);
+                      }}
+                      onClick={() => {
+                        setSelectedPreset(undefined);
+                        setSelectedQueueId(session.id);
+                      }}
                       aria-current={current ? "step" : undefined}
                       className={cn(
                         "flex items-center gap-[11px] rounded-lg border border-border bg-background p-[9px] max-[500px]:flex-wrap",
@@ -822,17 +914,7 @@ function Console({
                           type="button"
                           className={presenterButton({ size: "queue" })}
                           aria-label={`Remove ${session.name}`}
-                          onClick={() => {
-                            dispatch({
-                              type: "queue",
-                              queue: queue.filter(
-                                (item) => item.id !== session.id,
-                              ),
-                            });
-
-                            if (highlightedQueueId === session.id)
-                              setHighlightedQueueId(undefined);
-                          }}
+                          onClick={() => removeQueueItem(session.id)}
                         >
                           <Trash2 size={15} />
                         </button>
