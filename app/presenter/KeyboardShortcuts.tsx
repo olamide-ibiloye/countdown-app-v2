@@ -8,10 +8,12 @@ const shortcuts = [
   ["R", "Reset countdown (asks first while running)"],
   ["↑ / ↓", "Select a queue item privately"],
   ["Enter", "Show selected queue item; countdown stays ready"],
+  ["Delete / Backspace", "Remove selected preset or queue item"],
   ["B", "Blackout or restore stage"],
   ["F", "Fullscreen the connected stage"],
   ["1 / 2 / 3 / 4", "Prepare countdown / clock / image / message"],
   ["Shift + 1 / 2 / 3", "Add 30 seconds / 1 minute / 5 minutes"],
+  ["Ctrl / ⌘ + Enter", "Show the prepared output (also while typing)"],
   ["Ctrl / ⌘ + Shift + E", "Open End Event confirmation"],
   ["?", "Show keyboard shortcuts"],
   ["Double-click preset", "Show countdown ready to start"],
@@ -35,8 +37,8 @@ export function KeyboardShortcuts({ onClose }: { onClose: () => void }) {
         Keyboard shortcuts
       </h2>
       <p className="my-3 text-sm text-muted-foreground">
-        Shortcuts pause while you type or use a dialog. Showing a countdown
-        never starts it.
+        While typing, only Ctrl/⌘+Enter works. Shortcuts pause in dialogs.
+        Showing a countdown never starts it.
       </p>
       <dl className="grid gap-3">
         {shortcuts.map(([key, description]) => (
@@ -97,6 +99,15 @@ export function useLearningHint(key: string) {
   );
 }
 
+export function isGoLiveShortcut(event: KeyboardEvent) {
+  return (
+    event.key === "Enter" &&
+    event.ctrlKey !== event.metaKey &&
+    !event.shiftKey &&
+    !event.altKey
+  );
+}
+
 export function isEndEventShortcut(event: KeyboardEvent) {
   return (
     event.key.toLowerCase() === "e" &&
@@ -113,7 +124,9 @@ export function useKeyboardShortcuts(onKey: (event: KeyboardEvent) => void) {
         event.defaultPrevented ||
         event.repeat ||
         event.isComposing ||
-        ((event.ctrlKey || event.metaKey) && !isEndEventShortcut(event)) ||
+        ((event.ctrlKey || event.metaKey) &&
+          !isEndEventShortcut(event) &&
+          !isGoLiveShortcut(event)) ||
         event.altKey
       )
         return;
@@ -124,12 +137,32 @@ export function useKeyboardShortcuts(onKey: (event: KeyboardEvent) => void) {
       const target = event.target;
       if (target instanceof Element) {
         if (
+          target.closest('[role="tablist"]') &&
+          [
+            "ArrowLeft",
+            "ArrowRight",
+            "ArrowUp",
+            "ArrowDown",
+            "Home",
+            "End",
+          ].includes(event.key)
+        )
+          return;
+        if (
           target.closest(
-            'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="listbox"], [role="toolbar"]',
+            'select, [role="listbox"], [role="combobox"], [role="toolbar"]',
           )
         )
           return;
         if (
+          !isGoLiveShortcut(event) &&
+          target.closest(
+            'input, textarea, [contenteditable]:not([contenteditable="false"]), [role="textbox"]',
+          )
+        )
+          return;
+        if (
+          !isGoLiveShortcut(event) &&
           (event.code === "Space" || event.key === "Enter") &&
           target.closest('button, a, [role="button"]')
         )
@@ -137,7 +170,17 @@ export function useKeyboardShortcuts(onKey: (event: KeyboardEvent) => void) {
       }
       onKey(event);
     };
+    // Handle Go Live before the rich-text editor consumes Ctrl/⌘+Enter.
+    const captureGoLive = (event: KeyboardEvent) => {
+      if (!isGoLiveShortcut(event)) return;
+      handler(event);
+      if (event.defaultPrevented) event.stopPropagation();
+    };
+    window.addEventListener("keydown", captureGoLive, true);
     window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    return () => {
+      window.removeEventListener("keydown", captureGoLive, true);
+      window.removeEventListener("keydown", handler);
+    };
   }, [onKey]);
 }

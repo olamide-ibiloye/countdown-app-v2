@@ -272,6 +272,7 @@ export default function ImageLibrary({
             <Plus size={15} /> Add to Queue
           </button>
           <button
+            data-prepare-go-live
             type="button"
             className={presenterButton({ variant: "primary" })}
             onClick={() => void applyImage(selected, "stage")}
