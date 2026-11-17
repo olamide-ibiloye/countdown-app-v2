@@ -83,6 +83,67 @@ function FittedStageText({
   );
 }
 
+function FittedStageMessage({ html }: { html: string }) {
+  const container = useRef<HTMLDivElement>(null);
+  const text = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const frame = container.current;
+    const label = text.current;
+    if (!frame || !label) return;
+    let disposed = false;
+    function fit() {
+      if (
+        disposed ||
+        !frame ||
+        !label ||
+        !frame.clientWidth ||
+        !frame.clientHeight
+      )
+        return;
+      // Measure the wrapped rich text, including headings and explicit line breaks.
+      // Search for the largest size that fits both dimensions without scrolling.
+      let low = 0;
+      let high = frame.clientHeight;
+      for (let step = 0; step < 16; step++) {
+        const size = (low + high) / 2;
+        label.style.fontSize = `${size}px`;
+        if (
+          label.getBoundingClientRect().height <= frame.clientHeight - 2 &&
+          label.scrollWidth <= frame.clientWidth
+        )
+          low = size;
+        else high = size;
+      }
+      label.style.fontSize = `${low}px`;
+    }
+    const observer = new ResizeObserver(fit);
+    observer.observe(frame);
+    document.fonts.addEventListener("loadingdone", fit);
+    fit();
+    void document.fonts.ready.then(fit);
+    return () => {
+      disposed = true;
+      observer.disconnect();
+      document.fonts.removeEventListener("loadingdone", fit);
+    };
+  }, [html]);
+
+  return (
+    <div
+      ref={container}
+      className="relative size-full min-h-0 min-w-0 overflow-hidden"
+    >
+      <div
+        ref={text}
+        className="absolute left-0 top-1/2 w-full -translate-y-1/2 text-balance font-medium leading-[1.2] [overflow-wrap:anywhere] [&_blockquote]:border-s-[0.1em] [&_blockquote]:border-current [&_blockquote]:ps-[0.35em] [&_h1]:text-[1.8em] [&_h1]:font-extrabold [&_h2]:text-[1.45em] [&_h2]:font-[750] [&_h3]:text-[1.2em] [&_h3]:font-bold [&_ol]:mx-auto [&_ol]:w-fit [&_ol]:list-decimal [&_ol]:ps-[1.2em] [&_ol]:text-left [&_p]:min-h-[1.2em] [&_pre]:whitespace-pre-wrap [&_ul]:mx-auto [&_ul]:w-fit [&_ul]:list-disc [&_ul]:ps-[1.2em] [&_ul]:text-left"
+      >
+        <PresenterMessage html={html} />
+      </div>
+    </div>
+  );
+}
+
 export function StageContent({
   event,
   now,
@@ -115,7 +176,10 @@ export function StageContent({
   return (
     <div
       className={cn(
-        "grid size-full place-items-center overflow-hidden bg-white p-[5%] text-center font-presenter-mono text-primary [container-type:size] dark:bg-dark-2 dark:text-primary-foreground",
+        "grid size-full place-items-center overflow-hidden bg-white p-[5%] text-center text-primary [container-type:size] dark:bg-dark-2 dark:text-primary-foreground",
+        output.kind !== "message" && "font-presenter-mono",
+        output.kind === "message" &&
+          "grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)]",
         content && "grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)] p-[2%]",
         output.kind === "standby" && "bg-black dark:bg-black",
         output.kind === "image" &&
@@ -141,11 +205,7 @@ export function StageContent({
           onReady={onImageReady}
         />
       )}
-      {output.kind === "message" && (
-        <div className="max-h-full w-full overflow-auto text-[length:min(5cqi,10cqb)] leading-[1.25] [overflow-wrap:anywhere] [&_blockquote]:border-s-[0.1em] [&_blockquote]:border-current [&_blockquote]:ps-[0.35em] [&_h1]:text-[1.8em] [&_h1]:font-extrabold [&_h2]:text-[1.45em] [&_h2]:font-[750] [&_h3]:text-[1.2em] [&_h3]:font-bold [&_ol]:mx-auto [&_ol]:w-fit [&_ol]:list-decimal [&_ol]:ps-[1em] [&_ol]:text-left [&_ul]:mx-auto [&_ul]:w-fit [&_ul]:list-disc [&_ul]:ps-[1em] [&_ul]:text-left">
-          <PresenterMessage html={output.html} />
-        </div>
-      )}
+      {output.kind === "message" && <FittedStageMessage html={output.html} />}
     </div>
   );
 }

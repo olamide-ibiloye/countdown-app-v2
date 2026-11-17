@@ -27,6 +27,7 @@ import {
   ArrowUpRight,
   Clock3,
   ImageIcon,
+  ListOrdered,
   Maximize,
   Monitor,
   MonitorOff,
@@ -705,7 +706,7 @@ function Console({
             <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="mb-[3px] flex items-center gap-1.5 text-[0.7rem] font-bold uppercase tracking-[0.095em] text-muted-foreground">
-                  Run of show
+                  <ListOrdered size={14} /> Run of show
                 </p>
                 <h2 className="text-xl font-bold leading-normal tracking-tight">
                   Session Queue
@@ -971,8 +972,8 @@ function Console({
             aria-label="Screen controls and setup"
             className="min-w-0 rounded-[14px] border border-border bg-card p-[clamp(15px,2vw,23px)] shadow-[0_1px_3px_hsl(var(--foreground)/0.05)]"
           >
-            <h2 className="mb-3.5 text-xl font-bold leading-normal tracking-tight">
-              Screen controls &amp; setup
+            <h2 className="mb-3.5 flex items-center gap-1.5 text-[0.7rem] font-bold uppercase tracking-[0.095em] text-muted-foreground">
+              <Monitor size={14} /> Screen controls &amp; setup
             </h2>
             <div className="flex flex-wrap items-center gap-[9px]">
               <button
