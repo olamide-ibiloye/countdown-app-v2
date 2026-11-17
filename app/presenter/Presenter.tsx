@@ -1,12 +1,13 @@
 "use client";
 
-import { presenterButton } from "./styles";
 import { toast } from "sonner";
 import { PresenterToasts } from "./PresenterToasts";
+import { presenterButton } from "./styles";
 
 import { AppHeader, AppMenu } from "@/components/AppHeader";
 import RichTextEditor from "@/components/editMessage/RichTextEditor";
 import {
+  ADD_TIME_MS,
   clockFormat,
   parseDuration,
   PRESENTER_KEY,
@@ -38,6 +39,13 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import {
+  KeyboardShortcuts,
+  isEndEventShortcut,
+  useKeyboardShortcuts,
+  useLearningHint,
+  dismissHint,
+} from "./KeyboardShortcuts";
 import { CountdownControls } from "./CountdownControls";
 import { CountdownSaveDialog } from "./CountdownSaveDialog";
 import { CrewSharing } from "./CrewSharing";
@@ -103,6 +111,10 @@ function Console({
     duration: string;
     session?: Session;
   }>();
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [selectedQueueId, setSelectedQueueId] = useState<string>();
+  const presetHint = useLearningHint("aeon:preset-double-click:v1");
+  const spaceHint = useLearningHint("aeon:space-tip:v1");
   const [highlightedQueueId, setHighlightedQueueId] = useState<string>();
   const [presets, setPresets] = useState(loadPresets);
   const [twentyFourHours, setTwentyFourHours] = useState(
@@ -114,7 +126,9 @@ function Console({
   const [formError, setFormError] = useState("");
   const [singleScreen, setSingleScreen] = useState(false);
   const [confirm, setConfirm] = useState<
-    { kind: "cue"; session: Session } | { kind: "end" }
+    | { kind: "cue"; session: Session; preset?: boolean }
+    | { kind: "end" }
+    | { kind: "reset" }
   >();
 
   useEffect(() => {
@@ -174,17 +188,6 @@ function Console({
             ? "Stage disconnected"
             : "Stage not open";
 
-  useEffect(() => {
-    if (!singleScreen || !timer || finished) return;
-    const toggle = (e: KeyboardEvent) => {
-      if (e.code !== "Space" || e.repeat) return;
-      e.preventDefault();
-      dispatch({ type: running ? "pause" : "play" });
-    };
-    window.addEventListener("keydown", toggle);
-    return () => window.removeEventListener("keydown", toggle);
-  }, [singleScreen, timer, finished, running, dispatch]);
-
   function readDraft(): Session | undefined {
     const durationMs = parseDuration(duration.trim());
     if (!durationMs) {
@@ -203,10 +206,11 @@ function Console({
     return dispatch({ type: "output", output: nextOutput });
   }
 
-  async function cue(item: QueueItem) {
+  async function cue(item: QueueItem, preset = false) {
     if (item.kind !== "image") {
-      if (running) setConfirm({ kind: "cue", session: item });
-      else dispatch({ type: "cue", session: item });
+      if (running) setConfirm({ kind: "cue", session: item, preset });
+      else if (dispatch({ type: "cue", session: item }) && preset)
+        dismissHint("aeon:preset-double-click:v1");
       return;
     }
     try {
@@ -337,6 +341,92 @@ function Console({
     }
   }
 
+  function resetCountdown() {
+    if (output.kind !== "countdown" || !timer || timer.phase === "ready")
+      return;
+    if (running) setConfirm({ kind: "reset" });
+    else dispatch({ type: "reset" });
+  }
+
+  useKeyboardShortcuts((key) => {
+    if (confirm || saveDialog || shortcutsOpen) return;
+    const countdown = output.kind === "countdown" && timer && !finished;
+    if (singleScreen && key.code !== "Space") return;
+    if (isEndEventShortcut(key)) {
+      if (!timer && output.kind === "standby" && !event.blackoutOutput) return;
+      key.preventDefault();
+      setConfirm({ kind: "end" });
+    } else if (key.code === "Space" && countdown) {
+      key.preventDefault();
+      dispatch({ type: running ? "pause" : "play" });
+    } else if (key.key === "?") {
+      key.preventDefault();
+      setShortcutsOpen(true);
+    } else if (
+      key.shiftKey &&
+      ["Digit1", "Digit2", "Digit3"].includes(key.code)
+    ) {
+      if (!countdown) return;
+      key.preventDefault();
+      dispatch({
+        type: "extend",
+        durationMs: ADD_TIME_MS[Number(key.code.slice(-1)) - 1],
+      });
+    } else if (!key.shiftKey && ["1", "2", "3", "4"].includes(key.key)) {
+      key.preventDefault();
+      setEditor(
+        (["countdown", "clock", "image", "message"] as const)[
+          Number(key.key) - 1
+        ],
+      );
+      setFormError("");
+    } else if (key.key.toLowerCase() === "r" && !key.shiftKey) {
+      if (output.kind === "countdown" && timer) {
+        key.preventDefault();
+        resetCountdown();
+      }
+    } else if (key.key.toLowerCase() === "b" && !key.shiftKey) {
+      key.preventDefault();
+      if (output.kind === "standby") void restoreOutput();
+      else if (dispatch({ type: "blackout" }))
+        toast.info("Stage blacked out · B to restore");
+    } else if (key.key.toLowerCase() === "f" && !key.shiftKey) {
+      key.preventDefault();
+      if (stage.connected) stage.fullscreen();
+      else toast.info("Open Stage first to use fullscreen.");
+    } else if (
+      (key.key === "ArrowUp" || key.key === "ArrowDown") &&
+      queue.length
+    ) {
+      key.preventDefault();
+      const index = queue.findIndex((item) => item.id === selectedQueueId);
+      const next =
+        index < 0
+          ? key.key === "ArrowDown"
+            ? 0
+            : queue.length - 1
+          : Math.max(
+              0,
+              Math.min(
+                queue.length - 1,
+                index + (key.key === "ArrowDown" ? 1 : -1),
+              ),
+            );
+      setSelectedQueueId(queue[next].id);
+      const row = document.querySelector<HTMLElement>(
+        `[data-queue-id="${CSS.escape(queue[next].id)}"]`,
+      );
+      row?.focus({ preventScroll: true });
+      row?.scrollIntoView({ block: "nearest" });
+    } else if (key.key === "Enter") {
+      const item = queue.find((item) => item.id === selectedQueueId);
+      if (item) {
+        key.preventDefault();
+        void cue(item);
+      }
+    }
+  });
+
   if (singleScreen) {
     return (
       <main className="fixed inset-0 z-[100] overflow-hidden bg-white text-white [color-scheme:light] aria-[busy=true]:bg-black dark:bg-dark-2 dark:[color-scheme:dark]">
@@ -354,12 +444,13 @@ function Console({
           href="/classic"
           prefetch={false}
         >
-          <span className="max-sm:sr-only">Switch to </span>Classic Timer (v2)
+          <span className="max-sm:sr-only">Switch to </span>Classic (v2)
         </Link>
         <CrewSharing
           sharing={crewSharing}
           trigger={(onOpen, label) => (
             <AppMenu
+              onShortcuts={() => setShortcutsOpen(true)}
               sharing={{ label, onOpen }}
               offline={
                 <span
@@ -449,6 +540,20 @@ function Console({
                   <span className="text-[0.79rem] font-[650] text-muted-foreground">
                     Presets
                   </span>
+                  {presetHint && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>Double-click a preset to show it on stage.</span>
+                      <button
+                        type="button"
+                        aria-label="Dismiss preset tip"
+                        onClick={() =>
+                          dismissHint("aeon:preset-double-click:v1")
+                        }
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-[9px]">
                     {presets.map((preset) => (
                       <button
@@ -458,6 +563,16 @@ function Console({
                           "aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-primary dark:aria-pressed:text-primary-contrast",
                         )}
                         key={preset}
+                        onDoubleClick={() =>
+                          void cue(
+                            {
+                              id: crypto.randomUUID(),
+                              name: "Countdown",
+                              durationMs: parseDuration(preset)!,
+                            },
+                            true,
+                          )
+                        }
                         aria-pressed={
                           parseDuration(duration.trim()) ===
                           parseDuration(preset)
@@ -626,9 +741,21 @@ function Console({
                   return (
                     <li
                       key={session.id}
+                      data-queue-id={session.id}
+                      tabIndex={
+                        selectedQueueId === session.id ||
+                        (!queue.some((item) => item.id === selectedQueueId) &&
+                          index === 0)
+                          ? 0
+                          : -1
+                      }
+                      onFocus={() => setSelectedQueueId(session.id)}
+                      onClick={() => setSelectedQueueId(session.id)}
                       aria-current={current ? "step" : undefined}
                       className={cn(
                         "flex items-center gap-[11px] rounded-lg border border-border bg-background p-[9px] max-[500px]:flex-wrap",
+                        selectedQueueId === session.id &&
+                          "ring-2 ring-foreground/50 ring-offset-2 ring-offset-background",
                         current &&
                           "border-primary bg-primary/10 shadow-[inset_3px_0_0] shadow-primary dark:border-primary-contrast dark:shadow-primary-contrast",
                         upNext &&
@@ -824,7 +951,19 @@ function Console({
               </fieldset>
             )}
             {output.kind === "countdown" && timer && (
-              <CountdownControls timer={timer} now={now} dispatch={dispatch} />
+              <CountdownControls
+                timer={timer}
+                now={now}
+                dispatch={dispatch}
+                onReset={resetCountdown}
+                onMouseToggle={() => {
+                  if (!spaceHint) return;
+                  dismissHint("aeon:space-tip:v1");
+                  toast.info("Tip: press Space to pause or resume.", {
+                    action: { label: "Dismiss", onClick: () => {} },
+                  });
+                }}
+              />
             )}
           </section>
 
@@ -868,7 +1007,6 @@ function Console({
                 type="button"
                 className={presenterButton()}
                 onClick={openSingleScreen}
-                title="Space plays or pauses the timer. Escape returns to the console."
               >
                 <Maximize size={15} /> Single Screen
               </button>
@@ -932,6 +1070,9 @@ function Console({
           </section>
         </aside>
       </div>
+      {shortcutsOpen && (
+        <KeyboardShortcuts onClose={() => setShortcutsOpen(false)} />
+      )}
       {saveDialog && (
         <CountdownSaveDialog
           initialDuration={saveDialog.duration}
@@ -946,22 +1087,34 @@ function Console({
           title={
             confirm.kind === "cue"
               ? "Replace the running timer?"
-              : "End this event?"
+              : confirm.kind === "reset"
+                ? "Reset the running timer?"
+                : "End this event?"
           }
           description={
             confirm.kind === "cue"
               ? `${confirm.session.name} will be shown ready to start. The current countdown will stop.`
-              : "The stage will return to black standby. Your session queue and presets will be saved."
+              : confirm.kind === "reset"
+                ? "The countdown will stop and return to its original duration, ready to start."
+                : "The stage will return to black standby. Your session queue and presets will be saved."
           }
-          action={confirm.kind === "cue" ? "Replace Timer" : "End Event"}
+          action={
+            confirm.kind === "cue"
+              ? "Replace Timer"
+              : confirm.kind === "reset"
+                ? "Reset Timer"
+                : "End Event"
+          }
           onClose={() => setConfirm(undefined)}
           onConfirm={() => {
-            dispatch(
+            const saved = dispatch(
               confirm.kind === "cue"
                 ? { type: "cue", session: confirm.session }
-                : { type: "end" },
+                : { type: confirm.kind === "reset" ? "reset" : "end" },
             );
 
+            if (saved && confirm.kind === "cue" && confirm.preset)
+              dismissHint("aeon:preset-double-click:v1");
             setConfirm(undefined);
           }}
         />

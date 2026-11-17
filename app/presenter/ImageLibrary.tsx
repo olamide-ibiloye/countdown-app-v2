@@ -239,7 +239,6 @@ export default function ImageLibrary({
                 }}
                 onDoubleClick={() => void applyImage(image, "stage")}
                 aria-label={`Select ${image.name}`}
-                title="Select image; double-click to show on stage"
               >
                 <span className="block aspect-video overflow-hidden bg-black">
                   <LocalGraphic blob={image.blob} alt="" />

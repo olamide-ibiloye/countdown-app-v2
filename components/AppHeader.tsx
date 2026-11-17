@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
-import { Menu, Moon, Sun, Share2 } from "lucide-react";
+import { Menu, Moon, Sun, Share2, Keyboard } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,10 +54,12 @@ export function AppMenu({
   offline,
   sharing,
   changeEvent = false,
+  onShortcuts,
 }: {
   offline?: ReactNode;
   sharing?: { label: string; onOpen: () => void };
   changeEvent?: boolean;
+  onShortcuts?: () => void;
 }) {
   const { resolvedTheme, setTheme } = useTheme();
   return (
@@ -93,6 +95,13 @@ export function AppMenu({
             </DropdownMenuItem>
             <DropdownMenuSeparator />
           </>
+        )}
+        {onShortcuts && (
+          <DropdownMenuItem onSelect={() => window.setTimeout(onShortcuts, 0)}>
+            <Keyboard size={16} className="mr-2" />
+            Keyboard shortcuts
+            <span className="ml-auto pl-4 text-muted-foreground">?</span>
+          </DropdownMenuItem>
         )}
         <DropdownMenuItem
           onSelect={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}

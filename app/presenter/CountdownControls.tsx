@@ -12,7 +12,11 @@ export function CountdownControls({
   timer,
   now,
   dispatch,
+  onReset,
+  onMouseToggle,
 }: {
+  onReset: () => void;
+  onMouseToggle: () => void;
   timer: ActiveTimer;
   now: number;
   dispatch: (command: PresenterCommand) => boolean;
@@ -42,7 +46,13 @@ export function CountdownControls({
           type="button"
           className={presenterButton({ variant: "primary" })}
           disabled={finished}
-          onClick={() => dispatch({ type: running ? "pause" : "play" })}
+          onClick={(event) => {
+            if (
+              dispatch({ type: running ? "pause" : "play" }) &&
+              event.detail > 0
+            )
+              onMouseToggle();
+          }}
         >
           {running
             ? "Pause"
@@ -54,7 +64,7 @@ export function CountdownControls({
           type="button"
           className={presenterButton()}
           disabled={timer.phase === "ready"}
-          onClick={() => dispatch({ type: "reset" })}
+          onClick={onReset}
         >
           Reset
         </button>
